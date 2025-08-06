@@ -1,0 +1,80 @@
+[package]
+name = "qck-backend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Web Framework
+actix-web = "4.4"
+actix-cors = "0.7"
+actix-rt = "2.9"
+
+# Async Runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "migrate"] }
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Authentication
+jsonwebtoken = "9.2"
+bcrypt = "0.15"
+
+# UUID
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Environment
+dotenv = "0.15"
+config = "0.13"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-actix-web = "0.7"
+
+# Validation
+validator = { version = "0.16", features = ["derive"] }
+
+# URL Processing
+url = "2.5"
+base64 = "0.21"
+
+# HTTP Client
+reqwest = { version = "0.11", features = ["json"] }
+
+# Error Handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Rate Limiting
+governor = "0.6"
+
+# Email
+lettre = { version = "0.11", features = ["tokio1-rustls-tls", "builder", "smtp-transport"] }
+
+# Analytics
+clickhouse = { version = "0.11", features = ["tokio"] }
+
+# Security
+argon2 = "0.5"
+rand = "0.8"
+
+# Metrics
+prometheus = "0.13"
+prometheus-hyper = "0.2"
+
+[dev-dependencies]
+actix-rt = "2.9"
+once_cell = "1.19"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

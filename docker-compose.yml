@@ -1,0 +1,124 @@
+version: '3.9'
+
+services:
+  # Rust Backend API
+  qck-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: qck-api
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgresql://qck_user:qck_password@postgres:5432/qck_db
+      - REDIS_URL=redis://redis:6379
+      - CLICKHOUSE_URL=http://clickhouse:8123
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - RUST_LOG=debug
+      - ENVIRONMENT=development
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+      - ./Cargo.toml:/app/Cargo.toml
+      - cargo-cache:/usr/local/cargo/registry
+      - target-cache:/app/target
+    networks:
+      - qck-network
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: qck-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=qck_user
+      - POSTGRES_PASSWORD=qck_password
+      - POSTGRES_DB=qck_db
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./migrations/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - qck-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qck_user -d qck_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Redis Cache
+  redis:
+    image: redis:7.2-alpine
+    container_name: qck-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - qck-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ClickHouse Analytics Database
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.12
+    container_name: qck-clickhouse
+    ports:
+      - "8123:8123"  # HTTP interface
+      - "9000:9000"  # Native protocol
+    environment:
+      - CLICKHOUSE_DB=qck_analytics
+      - CLICKHOUSE_USER=qck_user
+      - CLICKHOUSE_PASSWORD=qck_password
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./migrations/clickhouse:/docker-entrypoint-initdb.d
+    networks:
+      - qck-network
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Adminer - Database Management UI (Development only)
+  adminer:
+    image: adminer:latest
+    container_name: qck-adminer
+    ports:
+      - "8081:8080"
+    networks:
+      - qck-network
+    environment:
+      - ADMINER_DEFAULT_SERVER=postgres
+    restart: unless-stopped
+
+networks:
+  qck-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  clickhouse-data:
+  cargo-cache:
+  target-cache:
