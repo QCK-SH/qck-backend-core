@@ -8,6 +8,25 @@
 
 This is the core backend service for QCK, handling all API operations, database interactions, and business logic. Built with Rust and Actix-web for maximum performance and reliability.
 
+## 🤖 CRITICAL: Task Delegation Protocol
+
+**MANDATORY: Always use specialized subagents via the Task tool instead of doing work directly.**
+
+For ANY backend development task, you MUST:
+1. Identify the appropriate specialized subagent
+2. Use the Task tool to delegate the work
+3. Provide comprehensive context about the Rust/Actix-web stack
+4. Let the subagent handle implementation autonomously
+
+**Recommended Subagents for Backend:**
+- `general-purpose`: API endpoint implementation, database integration
+- `bug-hunter`: Rust compilation errors, runtime issues
+- `debugger`: Test failures, performance problems
+- `api-documenter`: OpenAPI spec, endpoint documentation
+- `code-reviewer`: Rust code quality, SOLID principles
+- `test-runner`: Cargo test execution and analysis
+- `codex`: Architecture decisions, system design
+
 ## 🚨 CRITICAL SAFETY RULE
 
 **ALWAYS CHECK GIT STATUS FIRST**
