@@ -232,11 +232,74 @@ docker run -p 8080:8080 qck-backend
 - [ ] Monitoring configured
 - [ ] Logs aggregated
 
-## Linear Integration
+## 📊 Linear Organization
+
+### Linear Projects Setup
+Create these 3 main projects in Linear:
+1. **QCK Core Platform** - Backend API + User Dashboard (tightly coupled)
+2. **QCK Admin & Operations** - Admin panel + system operations
+3. **QCK Marketing & Growth** - Marketing site + customer acquisition
+
+### Issue Hierarchy
+All items in Linear are Issues with parent-child relationships:
+- **Epic Issues** (Label: `epic`) → Major feature groups
+- **Feature Issues** (Label: `feature`) → Specific functionality
+- **Task Issues** (Label: `task`) → Individual work items
+
+### Label System (Multiple labels per issue)
+
+**Platform Labels** (which component):
+- `backend` - Backend/API work (PRIMARY for this project)
+- `dashboard` - User dashboard/frontend
+- `admin` - Admin panel
+- `marketing` - Marketing site
+
+**Type Labels** (what kind of work):
+- `api` - API endpoints (common for backend)
+- `auth` - Authentication
+- `database` - Database work (common for backend)
+- `ui-ux` - User interface
+- `security` - Security features
+- `performance` - Optimization
+- `testing` - Tests
+- `deployment` - DevOps
+
+**Hierarchy Labels**:
+- `epic` - Top-level grouping
+- `feature` - Mid-level functionality
+- `task` - Individual work items
+
+**Priority Labels**:
+- `critical` - MVP blocker
+- `important` - Should have
+- `enhancement` - Nice to have
+
+### Backend-Specific Examples
+
+**Epic: "Authentication & Security"**
+- Labels: `epic`, `backend`, `auth`, `security`, `critical`
+- Children:
+  - **Feature: "User Registration System"**
+    - Labels: `feature`, `backend`, `api`, `auth`
+    - Children:
+      - **Task: "Build registration API endpoint"**
+        - Labels: `task`, `backend`, `api`, `auth`
+      - **Task: "Setup email verification"**
+        - Labels: `task`, `backend`, `api`, `auth`
+
+**Epic: "URL Shortening Engine"**
+- Labels: `epic`, `backend`, `api`, `database`, `critical`
+- Children:
+  - **Feature: "Link CRUD Operations"**
+    - Labels: `feature`, `backend`, `api`, `database`
+    - Children:
+      - **Task: "Implement Base62 encoding"**
+        - Labels: `task`, `backend`, `api`
+      - **Task: "Build link creation endpoint"**
+        - Labels: `task`, `backend`, `api`, `database`
 
 ### Team Configuration
 - **Linear Team ID**: `8557f533-649e-476c-9d20-efe571bfe69c`
-- Issue limit: 150 per request
 - Always check for existing issues before creating new ones
 - Update issue progress and completion status regularly
 
@@ -261,6 +324,7 @@ docker run -p 8080:8080 qck-backend
 - Mark as "waiting for review" when complete
 - Include screenshots/logs for bug fixes
 - Document API changes in issue comments
+- Use `backend` label for all backend-specific work
 
 ## Git Workflow
 
