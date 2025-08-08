@@ -248,31 +248,39 @@ All items in Linear are Issues with parent-child relationships:
 
 ### Label System (Multiple labels per issue)
 
+**Available Linear Labels with IDs:**
+
 **Platform Labels** (which component):
-- `backend` - Backend/API work (PRIMARY for this project)
-- `dashboard` - User dashboard/frontend
-- `admin` - Admin panel
-- `marketing` - Marketing site
+- `backend` - Backend/API work (PRIMARY for this project) - ID: `3d9d6f26-756e-48f6-918b-b54c47dccac1`
+- `dashboard` - User dashboard/frontend - ID: `27849ae1-3d66-4ba3-be68-e11ccb021e4c`
+- `admin` - Admin panel - ID: `9a590464-9eb3-44a6-90dc-a04567eaabe3`
+- `marketing` - Marketing site - ID: `6fde7c66-dc69-4925-9b53-86ca9e95424d`
 
 **Type Labels** (what kind of work):
-- `api` - API endpoints (common for backend)
-- `auth` - Authentication
-- `database` - Database work (common for backend)
-- `ui-ux` - User interface
-- `security` - Security features
-- `performance` - Optimization
-- `testing` - Tests
-- `deployment` - DevOps
+- `api` - API endpoints (common for backend) - ID: `ff9a7ae0-453f-4c17-ba25-e8c398f7c875`
+- `auth` - Authentication - ID: `50086f97-bfe0-42bb-9a00-64886326031c`
+- `database` - Database work (common for backend) - ID: `9abb6b86-4fa1-4284-8370-1c57c2aa826a`
+- `ui-ux` - User interface - ID: `ebb950d8-8bea-4c17-b38b-2ed841981d93`
+- `security` - Security features - ID: `e5d152b5-1588-49f5-a9ef-40f9236d92aa`
+- `performance` - Optimization - ID: `cfc5252e-6cfd-4dc5-ac3e-a6593cd71e98`
+- `testing` - Tests - ID: `d797ba3c-a0d8-4fbd-8728-a00089ab84d2`
+- `deployment` - DevOps - ID: `b54ced60-745e-4ae3-8abc-7a361b93752f`
 
 **Hierarchy Labels**:
-- `epic` - Top-level grouping
-- `feature` - Mid-level functionality
-- `task` - Individual work items
+- `EPIC` - Top-level grouping - ID: `b69ab092-259a-4a43-a284-8c54ab582524`
+- `Feature` - Mid-level functionality - ID: `d9c56e14-c8ba-4ded-8826-d6087a7378ab`
+- `Task` - Individual work items - ID: `acde3a19-1570-4abb-83e9-7425ab0eaed1`
 
-**Priority Labels**:
-- `critical` - MVP blocker
-- `important` - Should have
-- `enhancement` - Nice to have
+**Other Labels**:
+- `Improvement` - Enhancements - ID: `103a1ed8-fc60-43de-842f-705b4f56b377`
+- `Bug` - Bug fixes - ID: `f43c390a-3f87-4ca3-b47b-92148ee28a74`
+- `tech debt` - Technical debt - ID: `91cfb438-cf41-4131-89ff-d2d8a89d5398`
+- `Sub-Task` - Sub-tasks - ID: `e07e6bbe-33ff-4e9f-8280-a6f903729868`
+
+**Label Group Rules**:
+- Platform labels (`backend`, `dashboard`, `admin`, `marketing`) can be used together
+- Type labels (`api`, `auth`, `database`, `ui-ux`, `security`, `performance`, `testing`, `deployment`) are in the same group - only one per issue
+- Hierarchy labels (`EPIC`, `Feature`, `Task`) are in the same group - only one per issue
 
 ### Backend-Specific Examples
 
