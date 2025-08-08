@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   # Rust Backend API
   qck-api:
@@ -8,7 +6,7 @@ services:
       dockerfile: Dockerfile.dev
     container_name: qck-api
     ports:
-      - "8080:8080"
+      - "12000:8080"
     environment:
       - DATABASE_URL=postgresql://qck_user:qck_password@postgres:5432/qck_db
       - REDIS_URL=redis://redis:6379
@@ -37,7 +35,7 @@ services:
     image: postgres:16-alpine
     container_name: qck-postgres
     ports:
-      - "5432:5432"
+      - "12001:5432"
     environment:
       - POSTGRES_USER=qck_user
       - POSTGRES_PASSWORD=qck_password
@@ -59,7 +57,7 @@ services:
     image: redis:7.2-alpine
     container_name: qck-redis
     ports:
-      - "6379:6379"
+      - "12002:6379"
     command: redis-server --appendonly yes
     volumes:
       - redis-data:/data
@@ -77,8 +75,8 @@ services:
     image: clickhouse/clickhouse-server:23.12
     container_name: qck-clickhouse
     ports:
-      - "8123:8123"  # HTTP interface
-      - "9000:9000"  # Native protocol
+      - "12003:8123"  # HTTP interface
+      - "12004:9000"  # Native protocol
     environment:
       - CLICKHOUSE_DB=qck_analytics
       - CLICKHOUSE_USER=qck_user
@@ -105,7 +103,7 @@ services:
     image: adminer:latest
     container_name: qck-adminer
     ports:
-      - "8081:8080"
+      - "12005:8080"
     networks:
       - qck-network
     environment:

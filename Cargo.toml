@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+# Pin base64ct to avoid edition2024 requirement
+base64ct = "=1.6.0"
 # Web Framework
 actix-web = "4.4"
 actix-cors = "0.7"
@@ -57,13 +59,13 @@ anyhow = "1.0"
 governor = "0.6"
 
 # Email
-lettre = { version = "0.11", features = ["tokio1-rustls-tls", "builder", "smtp-transport"] }
+lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "builder", "smtp-transport"] }
 
 # Analytics
-clickhouse = { version = "0.11", features = ["tokio"] }
+clickhouse = "0.11"
 
 # Security
-argon2 = "0.5"
+argon2 = "=0.5.3"
 rand = "0.8"
 
 # Metrics
