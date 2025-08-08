@@ -1,0 +1,1 @@
+// Production handlers only - test endpoints removed

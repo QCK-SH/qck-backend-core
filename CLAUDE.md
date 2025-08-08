@@ -147,23 +147,49 @@ struct ApiResponse<T> {
 
 ## Testing Strategy
 
-### Unit Tests
-- Test individual functions in isolation
-- Mock external dependencies
-- Use `#[cfg(test)]` modules
+### Test Organization
+**✅ REQUIRED: Separate Test Files (NO inline #[cfg(test)] modules)**
+```
+qck-backend/
+├── tests/                   # Integration tests
+│   ├── postgres_test.rs    # Database pool tests
+│   ├── redis_config_test.rs # Redis configuration tests
+│   ├── redis_pool_test.rs  # Redis pool tests
+│   └── api_endpoints_test.rs # API integration tests
+├── .env.test               # Test environment (auto-loaded)
+└── src/
+    ├── lib.rs             # Library exports for testing
+    └── modules/           # NO inline test modules
+```
 
-### Integration Tests
-- Test full API endpoints
-- Use test database
-- Clean up after tests
+### Test Types
+- **Unit Tests**: Individual functions, mocked dependencies
+- **Integration Tests**: Full API endpoints with real connections
+- **Performance Tests**: Load testing (1000+ ops/second)
 
-### Performance Tests
-- Load test critical endpoints
-- Monitor memory usage
-- Check for memory leaks
+### Test Execution
+```bash
+# Run all tests (auto-loads .env.test)
+cargo test
+
+# Run specific categories  
+cargo test --test redis_pool_test
+cargo test -- --nocapture
+```
+
+**Details**: See @.claude/memory/architecture/test-organization-best-practices.md
 
 ## Performance Guidelines
 
+### Production Scaling for 1M Clicks/Day
+- **Database**: 300 connections (12 avg/s, 100 peak/s)
+- **Redis**: 150 connections (95%+ cache hit ratio)
+- **Performance**: <50ms redirects, <1ms cache hits
+- **Resources**: API(1GB), PostgreSQL(2GB), Redis(512MB)
+
+**Details**: See @.claude/memory/architecture/production-scaling-1m-clicks.md
+
+### General Performance
 - Database queries < 50ms
 - API responses < 200ms
 - Use connection pooling
@@ -371,15 +397,16 @@ Every significant change MUST be documented in @.claude/memory/:
 ```
 .claude/memory/
 ├── features/           # Feature implementations
-│   └── YYYY-MM-DD-feature-name.md
+│   └── 2025-08-08-redis-connection-pool.md
 ├── tasks/             # Individual tasks completed
-│   └── YYYY-MM-DD-task-description.md
 ├── fixes/             # Bug fixes and issues resolved
-│   └── YYYY-MM-DD-fix-description.md
 ├── architecture/      # Architecture decisions and changes
-│   └── YYYY-MM-DD-architecture-change.md
+│   ├── 2025-08-08-test-organization-best-practices.md
+│   └── 2025-08-08-production-scaling-1m-clicks.md
 └── index.md          # Master index of all changes
 ```
+
+**See @.claude/memory/index.md for complete development history**
 
 ### Memory File Template
 ```markdown

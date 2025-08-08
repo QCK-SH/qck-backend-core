@@ -3,6 +3,14 @@ name = "qck-backend"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "qck_backend"
+path = "src/lib.rs"
+
+[[bin]]
+name = "qck-backend"
+path = "src/main.rs"
+
 [dependencies]
 # Pin base64ct to avoid edition2024 requirement
 base64ct = "=1.6.0"

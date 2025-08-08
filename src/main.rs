@@ -3,7 +3,8 @@ use tracing::{info, error};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod db;
-use db::{PostgresPool, DatabaseConfig, postgres::mask_connection_string};
+mod handlers;
+use db::{PostgresPool, DatabaseConfig, postgres::mask_connection_string, RedisPool, RedisConfig};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -45,14 +46,35 @@ async fn main() -> std::io::Result<()> {
         }
     };
     
-    // Clone pool for the closure
+    // Initialize Redis pool
+    println!("Initializing Redis pool...");
+    let redis_config = RedisConfig::from_env();
+    let redis_pool = match RedisPool::new(redis_config).await {
+        Ok(pool) => {
+            println!("✓ Redis connection pool initialized successfully");
+            info!("Redis connection pool initialized successfully");
+            pool
+        }
+        Err(e) => {
+            println!("✗ Failed to initialize Redis pool: {}", e);
+            error!("Failed to initialize Redis pool: {}", e);
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Redis initialization failed: {}", e),
+            ));
+        }
+    };
+    
+    // Clone pools for the closure
     let pool_data = web::Data::new(postgres_pool.clone_pool());
+    let redis_data = web::Data::new(redis_pool.clone());
 
     println!("Starting HTTP server on {}...", bind_address);
     
     HttpServer::new(move || {
         App::new()
             .app_data(pool_data.clone())
+            .app_data(redis_data.clone())
             .app_data(web::Data::new(max_connections))
             .wrap(middleware::Logger::default())
             .wrap(middleware::NormalizePath::trim())
@@ -68,6 +90,7 @@ async fn main() -> std::io::Result<()> {
 
 async fn comprehensive_health_check(
     pool: web::Data<sqlx::PgPool>,
+    redis_pool: web::Data<RedisPool>,
     max_connections: web::Data<u32>
 ) -> actix_web::Result<HttpResponse> {
     use serde_json::json;
@@ -90,23 +113,18 @@ async fn comprehensive_health_check(
         "error": health.error
     });
     
-    // Redis health check
-    let redis_health = match check_redis_health().await {
-        Ok(latency) => {
-            json!({
-                "status": "healthy",
-                "latency_ms": latency,
-                "error": null
-            })
-        }
-        Err(e) => {
-            overall_healthy = false;
-            json!({
-                "status": "unhealthy",
-                "error": format!("Redis connection failed: {}", e)
-            })
-        }
-    };
+    // Redis health check - use the pool
+    let redis_health_result = redis_pool.health_check().await;
+    if !redis_health_result.is_healthy {
+        overall_healthy = false;
+    }
+    let redis_health = json!({
+        "status": if redis_health_result.is_healthy { "healthy" } else { "unhealthy" },
+        "latency_ms": redis_health_result.latency_ms,
+        "active_connections": redis_health_result.active_connections,
+        "total_connections": redis_health_result.total_connections,
+        "error": redis_health_result.error
+    });
     
     // ClickHouse health check
     let clickhouse_health = match check_clickhouse_health().await {
@@ -144,20 +162,6 @@ async fn comprehensive_health_check(
     }
 }
 
-async fn check_redis_health() -> Result<i64, Box<dyn std::error::Error>> {
-    use redis::AsyncCommands;
-    use std::time::Instant;
-    
-    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://redis:6379".to_string());
-    let client = redis::Client::open(redis_url)?;
-    let mut con = client.get_async_connection().await?;
-    
-    let start = Instant::now();
-    let _: redis::RedisResult<String> = redis::cmd("PING").query_async(&mut con).await;
-    let latency = start.elapsed().as_millis() as i64;
-    
-    Ok(latency)
-}
 
 async fn check_clickhouse_health() -> Result<i64, Box<dyn std::error::Error>> {
     use std::time::Instant;

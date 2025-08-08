@@ -262,46 +262,14 @@ pub fn mask_connection_string(url: &str) -> String {
     if let Ok(parsed) = url::Url::parse(url) {
         let host = parsed.host_str().unwrap_or("unknown");
         let path = parsed.path();
-        format!("postgresql://***:***@{}{}", host, path)
+        
+        // Check if URL has username/password
+        if parsed.username() != "" || parsed.password().is_some() {
+            format!("postgresql://***:***@{}{}", host, path)
+        } else {
+            format!("postgresql://{}{}", host, path)
+        }
     } else {
         "postgresql://***:***@***".to_string()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[tokio::test]
-    async fn test_config_validation() {
-        let mut config = DatabaseConfig::default();
-        
-        // Valid config should pass
-        assert!(config.validate().is_ok());
-        
-        // Invalid: max < min
-        config.max_connections = 1;
-        config.min_connections = 5;
-        assert!(config.validate().is_err());
-        
-        // Invalid: max = 0
-        config.max_connections = 0;
-        config.min_connections = 0;
-        assert!(config.validate().is_err());
-        
-        // Invalid: empty URL
-        config.database_url = String::new();
-        assert!(config.validate().is_err());
-    }
-    
-    #[test]
-    fn test_mask_connection_string() {
-        let url = "postgresql://user:pass@localhost:5432/mydb";
-        let masked = mask_connection_string(url);
-        assert_eq!(masked, "postgresql://***:***@localhost/mydb");
-        
-        let invalid = "not a url";
-        let masked = mask_connection_string(invalid);
-        assert_eq!(masked, "postgresql://***:***@***");
     }
 }
