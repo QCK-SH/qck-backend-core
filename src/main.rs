@@ -46,6 +46,58 @@ async fn main() -> std::io::Result<()> {
         }
     };
     
+    // Run database migrations if enabled
+    let run_migrations = std::env::var("RUN_MIGRATIONS")
+        .unwrap_or_else(|_| "true".to_string())
+        .parse::<bool>()
+        .unwrap_or(true);
+    
+    if run_migrations {
+        println!("Running database migrations...");
+        
+        // Check if using custom migrations path
+        let migrations_path = std::env::var("MIGRATIONS_PATH").ok();
+        
+        // Use compile-time embedded migrations for better performance, 
+        // or runtime path if MIGRATIONS_PATH is specified
+        let result = if let Some(custom_path) = migrations_path {
+            // Only create runtime Migrator if custom path is specified
+            let migrator = match sqlx::migrate::Migrator::new(std::path::Path::new(&custom_path)).await {
+                Ok(m) => m,
+                Err(e) => {
+                    println!("✗ Failed to initialize migrator: {}", e);
+                    error!("Failed to initialize migrator from custom path: {}", e);
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("Migrator initialization failed: {}", e),
+                    ));
+                }
+            };
+            migrator.run(postgres_pool.get_pool()).await
+        } else {
+            // Use compile-time embedded migrations for better startup performance
+            sqlx::migrate!("./migrations").run(postgres_pool.get_pool()).await
+        };
+        
+        match result {
+            Ok(_) => {
+                println!("✓ Database migrations completed successfully");
+                info!("Database migrations completed successfully");
+            }
+            Err(e) => {
+                println!("✗ Failed to run database migrations: {}", e);
+                error!("Failed to run database migrations: {}", e);
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Migration failed: {}", e),
+                ));
+            }
+        }
+    } else {
+        println!("⚠ Database migrations skipped (RUN_MIGRATIONS=false)");
+        info!("Database migrations skipped");
+    }
+    
     // Initialize Redis pool
     println!("Initializing Redis pool...");
     let redis_config = RedisConfig::from_env();

@@ -39,6 +39,12 @@ Before starting ANY task that modifies files:
 
 ## Critical Rules
 
+- **GitHub PR Review Efficiency**: When checking for PR comments, ALWAYS use this single command first:
+  ```bash
+  gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments --jq '.[] | {user: .user.login, created: .created_at, body: .body[0:200], path, line}'
+  ```
+  This gets all comments with resolution status immediately. Don't waste API calls checking multiple endpoints.
+
 - **Package Manager**: Use `cargo` exclusively (never npm/yarn/pnpm)
 - **Database Access**: All databases run via docker-compose.yml in this directory
 - **Hot Reload**: Use `cargo-watch` for development
