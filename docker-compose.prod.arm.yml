@@ -208,14 +208,17 @@ services:
       - "19003:8123"  # HTTP interface
       - "19004:9000"  # Native protocol
     
+    # Custom entrypoint for auto-migrations
+    entrypoint: /scripts/clickhouse-entrypoint.sh
+    
     environment:
       - CLICKHOUSE_DB=qck_analytics
       - CLICKHOUSE_USER=qck_user
       - CLICKHOUSE_PASSWORD=dev-clickhouse-pass
       - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
       
-      # Production tuning
-      - CLICKHOUSE_MAX_MEMORY_USAGE=4000000000
+      # Production tuning (increased for 32GB system)
+      - CLICKHOUSE_MAX_MEMORY_USAGE=12000000000
       - CLICKHOUSE_MAX_THREADS=16
       - CLICKHOUSE_MAX_QUERY_SIZE=67108864
       - CLICKHOUSE_MAX_AST_ELEMENTS=1000000
@@ -236,19 +239,20 @@ services:
       - SYS_NICE
       - KILL
     
-    # Resource limits
+    # Resource limits (increased for 32GB system)
     deploy:
       resources:
         limits:
-          cpus: '4.0'
-          memory: 6G
+          cpus: '8.0'
+          memory: 16G
         reservations:
-          cpus: '1.0'
-          memory: 1G
+          cpus: '2.0'
+          memory: 4G
     
     volumes:
       - clickhouse-prod-data:/var/lib/clickhouse
       - ./migrations/clickhouse:/docker-entrypoint-initdb.d:ro
+      - ./scripts/clickhouse-entrypoint.sh:/scripts/clickhouse-entrypoint.sh:ro
     
     networks:
       - qck-production-network

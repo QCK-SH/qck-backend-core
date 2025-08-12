@@ -293,7 +293,7 @@ impl RedisPool {
             Err(_) => Err(RedisError::from((
                 redis::ErrorKind::IoError, 
                 "Connection validation timeout",
-                &format!("Connection validation timeout after {}ms", VALIDATION_TIMEOUT.as_millis())
+                format!("Connection validation timeout after {}ms", VALIDATION_TIMEOUT.as_millis())
             )))
         }
     }
