@@ -5,9 +5,4 @@ pub mod db;
 pub mod handlers;
 
 // Re-export commonly used types
-pub use db::{
-    DatabaseConfig, 
-    PostgresPool,
-    RedisConfig,
-    RedisPool,
-};
+pub use db::{DatabaseConfig, PostgresPool, RedisConfig, RedisPool};

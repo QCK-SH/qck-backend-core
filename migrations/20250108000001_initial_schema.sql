@@ -110,19 +110,19 @@ CREATE TABLE IF NOT EXISTS domains (
 );
 
 -- Create indexes for performance
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_username ON users(username);
-CREATE INDEX idx_links_short_code ON links(short_code);
-CREATE INDEX idx_links_user_id ON links(user_id);
-CREATE INDEX idx_links_created_at ON links(created_at DESC);
-CREATE INDEX idx_link_clicks_link_id ON link_clicks(link_id);
-CREATE INDEX idx_link_clicks_clicked_at ON link_clicks(clicked_at DESC);
-CREATE INDEX idx_user_sessions_token_hash ON user_sessions(token_hash);
-CREATE INDEX idx_user_sessions_user_id ON user_sessions(user_id);
-CREATE INDEX idx_api_keys_key_hash ON api_keys(key_hash);
-CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
-CREATE INDEX idx_domains_domain ON domains(domain);
-CREATE INDEX idx_domains_user_id ON domains(user_id);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_links_short_code ON links(short_code);
+CREATE INDEX IF NOT EXISTS idx_links_user_id ON links(user_id);
+CREATE INDEX IF NOT EXISTS idx_links_created_at ON links(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_link_clicks_link_id ON link_clicks(link_id);
+CREATE INDEX IF NOT EXISTS idx_link_clicks_clicked_at ON link_clicks(clicked_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_token_hash ON user_sessions(token_hash);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash);
+CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id);
+CREATE INDEX IF NOT EXISTS idx_domains_domain ON domains(domain);
+CREATE INDEX IF NOT EXISTS idx_domains_user_id ON domains(user_id);
 
 -- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -133,15 +133,24 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Apply updated_at trigger to tables
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_links_updated_at BEFORE UPDATE ON links
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_domains_updated_at BEFORE UPDATE ON domains
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- Apply updated_at trigger to tables (only if they don't exist)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_users_updated_at') THEN
+        CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+            FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_links_updated_at') THEN
+        CREATE TRIGGER update_links_updated_at BEFORE UPDATE ON links
+            FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_domains_updated_at') THEN
+        CREATE TRIGGER update_domains_updated_at BEFORE UPDATE ON domains
+            FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+END $$;
 
 -- Add comments for documentation
 COMMENT ON TABLE users IS 'User accounts for the QCK platform';

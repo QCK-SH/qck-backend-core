@@ -105,11 +105,11 @@ impl PostgresPool {
             .acquire_timeout(config.connect_timeout)
             .idle_timeout(Some(config.idle_timeout))
             .max_lifetime(Some(config.max_lifetime))
-            .test_before_acquire(config.test_before_acquire)
+            .test_before_acquire(true)  // Enable for connection safety
             .before_acquire(|_conn, _meta| {
                 Box::pin(async move {
-                    // Custom connection validation
-                    // You can add custom checks here
+                    // SQLx's test_before_acquire handles validation
+                    // This hook is for custom business logic only
                     Ok(true)
                 })
             })
@@ -230,7 +230,7 @@ impl PostgresPool {
                 Err(e) if Self::is_retryable_error(&e) && retry_count < max_retries => {
                     warn!("Retryable database error (attempt {}): {}", retry_count + 1, e);
                     sleep(delay).await;
-                    delay = delay * 2;
+                    delay *= 2;
                     retry_count += 1;
                 }
                 Err(e) => return Err(e),

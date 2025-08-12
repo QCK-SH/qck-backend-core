@@ -5,6 +5,11 @@ This directory contains the development history and decisions for the QCK Backen
 ## Recent Changes
 
 ### Tasks
+- **2025-08-08**: [Links Table Schema Update](tasks/2025-08-08-links-table-schema.md)
+  - Status: ✅ Completed
+  - Impact: Optimized links table with custom aliases and performance indexes
+  - Linear: DEV-87
+
 - **2025-08-08**: [Database Migration System](tasks/2025-08-08-database-migration-system.md)
   - Status: ✅ Completed
   - Impact: SQLx migrations with automatic startup execution

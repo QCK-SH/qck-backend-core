@@ -2,6 +2,8 @@
 
 > **This is the Single Source of Truth for the QCK Backend project**
 > 
+> **GitHub Repository**: https://github.com/QCK-SH/qck-backend
+> 
 > Rust-based monolithic backend API for the QCK URL shortener platform. This document contains everything needed to work on this project independently.
 
 ## Project Context

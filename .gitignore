@@ -170,3 +170,26 @@ data/
 postgres-data/
 redis-data/
 clickhouse-data/
+# Environment files
+.env
+.env.local
+.env.production
+.env.*.local
+!.env.staging
+!.env.production.template
+
+# Backup files
+backups/
+*.backup
+*.bak
+
+# Production secrets (NEVER COMMIT - SECURITY CRITICAL)
+secrets/*.txt
+secrets/*.key
+secrets/*.pem
+secrets/*.crt
+
+# Production data directories (bind mounts)
+data/postgres-prod/
+data/redis-prod/
+data/clickhouse-prod/

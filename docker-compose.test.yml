@@ -1,0 +1,117 @@
+services:
+  # Rust Backend API - Test Environment (Production-like)
+  qck-api-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: qck-api-test
+    ports:
+      - "15000:8080"
+    environment:
+      - DATABASE_URL=postgresql://qck_user:qck_password@postgres-test:5432/qck_test
+      - REDIS_URL=redis://redis-test:6379
+      - CLICKHOUSE_URL=http://clickhouse-test:8123
+      - JWT_SECRET=test-production-secret-key
+      - RUST_LOG=warn,qck_backend=info
+      - ENVIRONMENT=test
+      # CONNECTION POOL SETTINGS (Test/Production-like)
+      - DATABASE_MAX_CONNECTIONS=200    # Test: 200 (between dev:100 and prod:300)
+      - REDIS_POOL_SIZE=100              # Test: 100 (between dev:50 and prod:150)
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+      clickhouse-test:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+      - ./migrations:/app/migrations
+      - ./Cargo.toml:/app/Cargo.toml
+      - cargo-cache-test:/usr/local/cargo/registry
+      - target-cache-test:/app/target
+    networks:
+      - qck-test-network
+    restart: unless-stopped
+
+  # PostgreSQL Database - Test
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: qck-postgres-test
+    ports:
+      - "15001:5432"
+    environment:
+      - POSTGRES_USER=qck_user
+      - POSTGRES_PASSWORD=qck_password
+      - POSTGRES_DB=qck_test
+    volumes:
+      - postgres-test-data:/var/lib/postgresql/data
+      # SQLx migrations are handled by the API at startup, not here
+    networks:
+      - qck-test-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qck_user -d qck_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Redis Cache - Test
+  redis-test:
+    image: redis:7.2-alpine
+    container_name: qck-redis-test
+    ports:
+      - "15002:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-test-data:/data
+    networks:
+      - qck-test-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ClickHouse Analytics Database - Test
+  clickhouse-test:
+    image: clickhouse/clickhouse-server:23.12
+    container_name: qck-clickhouse-test
+    ports:
+      - "15003:8123"  # HTTP interface
+      - "15004:9000"  # Native protocol
+    environment:
+      - CLICKHOUSE_DB=qck_test_analytics
+      - CLICKHOUSE_USER=qck_user
+      - CLICKHOUSE_PASSWORD=qck_password
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    volumes:
+      - clickhouse-test-data:/var/lib/clickhouse
+      - ./migrations/clickhouse:/docker-entrypoint-initdb.d
+    networks:
+      - qck-test-network
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Remove Adminer for production-like test environment
+  # No database UI in production
+
+networks:
+  qck-test-network:
+    driver: bridge
+
+volumes:
+  postgres-test-data:
+  redis-test-data:
+  clickhouse-test-data:
+  cargo-cache-test:
+  target-cache-test:

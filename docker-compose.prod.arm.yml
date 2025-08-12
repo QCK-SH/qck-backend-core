@@ -1,28 +1,32 @@
-# PRODUCTION ARM64 COMPOSE
-# Distroless API with Alpine databases for production
+# SECURE PRODUCTION DOCKER COMPOSE FOR ARM64
+# Full security hardening with secrets management
 
 services:
   # ============================================================================
-  # QCK API - GOOGLE DISTROLESS 12.7MB
+  # QCK API - Secure Production ARM64
   # ============================================================================
-  qck-api:
+  qck-api-prod-arm:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: qck-api
+      dockerfile: Dockerfile.prod.arm
+    container_name: qck-api-prod-arm
     platform: linux/arm64
     ports:
-      - "29000:8080"
+      - "19000:8080"
     
-    # Environment variables only
+    # Using .env file for configuration
+    
+    # Environment variables (non-sensitive only)
     environment:
       - ENVIRONMENT=production
       - RUST_LOG=warn,qck_backend=info
       - RUST_BACKTRACE=0
       - BIND_ADDRESS=0.0.0.0:8080
       
+      # All configuration comes from .env file embedded in container
+      
       # Production features
-      - RUN_MIGRATIONS=false  # Run separately
+      - RUN_MIGRATIONS=true  # WARNING: Set to false in real production! Only true for testing
       - ENABLE_METRICS=true
       - ENABLE_TRACING=true
       - ENABLE_RATE_LIMITING=true
@@ -30,34 +34,37 @@ services:
       - RATE_LIMIT_BURST=200
     
     # ========================================
-    # MAXIMUM SECURITY HARDENING
+    # SECURITY HARDENING
     # ========================================
     security_opt:
       - no-new-privileges:true
       - apparmor:docker-default
     
-    # Read-only root filesystem (distroless style)
+    # Read-only root filesystem
     read_only: true
     
-    # Minimal tmpfs
+    # Temporary filesystems for writable areas
     tmpfs:
-      - /tmp:rw,noexec,nosuid,size=50m
+      - /tmp:rw,noexec,nosuid,size=100m
+      - /var/tmp:rw,noexec,nosuid,size=50m
     
-    # Drop ALL capabilities (distroless has none anyway)
+    # Drop all capabilities, add only necessary ones
     cap_drop:
       - ALL
+    cap_add:
+      - NET_BIND_SERVICE
     
     # Resource limits
     deploy:
       resources:
         limits:
           cpus: '2.0'
-          memory: 512M
+          memory: 1G
         reservations:
           cpus: '0.5'
-          memory: 128M
+          memory: 256M
     
-    # Minimal health check (no shell available)
+    # Health check - version flag now works correctly
     healthcheck:
       test: ["CMD", "/app/qck-backend", "--version"]
       interval: 30s
@@ -66,128 +73,44 @@ services:
       start_period: 40s
     
     depends_on:
-      postgres:
+      postgres-prod-arm:
         condition: service_healthy
-      redis:
+      redis-prod-arm:
         condition: service_healthy
-      clickhouse:
+      clickhouse-prod-arm:
         condition: service_healthy
     
+    
     networks:
-      - qck-network
+      - qck-production-network
     
     restart: unless-stopped
 
   # ============================================================================
-  # PostgreSQL - Lightweight Alpine
+  # PostgreSQL - Production Hardened
   # ============================================================================
-  postgres:
+  postgres-prod-arm:
     image: postgres:16-alpine
-    container_name: qck-postgres
+    container_name: qck-postgres-prod-arm
     platform: linux/arm64
     ports:
-      - "29001:5432"
+      - "19001:5432"
     
     environment:
       - POSTGRES_USER=qck_user
-      - POSTGRES_PASSWORD=prod-db-password-complex-long-shit
-      - POSTGRES_DB=qck
+      - POSTGRES_PASSWORD=dev-db-password
+      - POSTGRES_DB=qck_production
       
       # Production tuning
       - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C --auth-local=scram-sha-256 --auth-host=scram-sha-256
       - POSTGRES_HOST_AUTH_METHOD=scram-sha-256
     
-    # Minimal security
-    security_opt:
-      - no-new-privileges:true
-    
-    # Resource limits
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 256M
-    
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    
-    networks:
-      - qck-network
-    
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U qck_user -d qck"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    
-    restart: unless-stopped
-
-  # ============================================================================
-  # Redis - Minimal Alpine
-  # ============================================================================
-  redis:
-    image: redis:7.2-alpine
-    container_name: qck-redis
-    platform: linux/arm64
-    ports:
-      - "29002:6379"
-    
-    # Minimal Redis configuration
-    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
-    
     # Security hardening
     security_opt:
       - no-new-privileges:true
-    read_only: true
-    
-    # Resource limits
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 1G
-        reservations:
-          cpus: '0.1'
-          memory: 128M
-    
-    volumes:
-      - redis-data:/data
-    
-    networks:
-      - qck-network
-    
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    
-    restart: unless-stopped
-
-  # ============================================================================
-  # ClickHouse - Lightweight
-  # ============================================================================
-  clickhouse:
-    image: clickhouse/clickhouse-server:23.12
-    container_name: qck-clickhouse
-    platform: linux/arm64
-    ports:
-      - "29003:8123"
-      - "29004:9000"
-    
-    environment:
-      - CLICKHOUSE_DB=qck_analytics
-      - CLICKHOUSE_USER=qck_user
-      - CLICKHOUSE_PASSWORD=prod-clickhouse-password-complex-long-shit
-      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
-    
-    # Security hardening
-    security_opt:
-      - no-new-privileges:true
+    read_only: false  # Postgres needs to write
+    tmpfs:
+      - /var/run/postgresql:rw,noexec,nosuid,size=100m
     
     cap_drop:
       - ALL
@@ -197,23 +120,143 @@ services:
       - FOWNER
       - SETGID
       - SETUID
-      - KILL
     
     # Resource limits
     deploy:
       resources:
         limits:
           cpus: '2.0'
-          memory: 3G
+          memory: 2G
         reservations:
-          cpus: '0.5'
+          cpus: '1.0'
           memory: 512M
     
     volumes:
-      - clickhouse-data:/var/lib/clickhouse
+      - postgres-prod-data:/var/lib/postgresql/data
     
     networks:
-      - qck-network
+      - qck-production-network
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qck_user -d qck_production"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    
+    restart: unless-stopped
+
+  # ============================================================================
+  # Redis - Production Hardened
+  # ============================================================================
+  redis-prod-arm:
+    image: redis:7.2-alpine
+    container_name: qck-redis-prod-arm
+    platform: linux/arm64
+    ports:
+      - "19002:6379"
+    
+    # Production Redis configuration (no appendonly for read-only filesystem)
+    command: redis-server --maxmemory 2gb --maxmemory-policy allkeys-lru --tcp-keepalive 300 --tcp-backlog 511 --save ""
+    
+    # Security hardening
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=100m
+      - /data:rw,noexec,nosuid,size=500m
+    
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETGID
+      - SETUID
+      - CHOWN
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2.5G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    
+    # Volume removed - using tmpfs for /data instead
+    
+    networks:
+      - qck-production-network
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    
+    restart: unless-stopped
+
+  # ============================================================================
+  # ClickHouse - Production Hardened
+  # ============================================================================
+  clickhouse-prod-arm:
+    image: clickhouse/clickhouse-server:23.12
+    container_name: qck-clickhouse-prod-arm
+    platform: linux/arm64
+    ports:
+      - "19003:8123"  # HTTP interface
+      - "19004:9000"  # Native protocol
+    
+    environment:
+      - CLICKHOUSE_DB=qck_analytics
+      - CLICKHOUSE_USER=qck_user
+      - CLICKHOUSE_PASSWORD=dev-clickhouse-pass
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+      
+      # Production tuning
+      - CLICKHOUSE_MAX_MEMORY_USAGE=4000000000
+      - CLICKHOUSE_MAX_THREADS=16
+      - CLICKHOUSE_MAX_QUERY_SIZE=67108864
+      - CLICKHOUSE_MAX_AST_ELEMENTS=1000000
+    
+    # Security hardening
+    security_opt:
+      - no-new-privileges:true
+    read_only: false  # ClickHouse needs to write
+    
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+      - SYS_NICE
+      - KILL
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 6G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    
+    volumes:
+      - clickhouse-prod-data:/var/lib/clickhouse
+      - ./migrations/clickhouse:/docker-entrypoint-initdb.d:ro
+    
+    networks:
+      - qck-production-network
+    
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
     
     healthcheck:
       test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
@@ -224,19 +267,28 @@ services:
     restart: unless-stopped
 
 # ============================================================================
+# SIMPLE .ENV CONFIGURATION (No external secrets)
+# ============================================================================
+
+# ============================================================================
 # NETWORKS
 # ============================================================================
 networks:
-  qck-network:
+  qck-production-network:
     driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: qck-prod-br
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
 
 # ============================================================================
 # VOLUMES
 # ============================================================================
 volumes:
-  postgres-data:
+  postgres-prod-data:
     driver: local
-  redis-data:
+  redis-prod-data:
     driver: local
-  clickhouse-data:
+  clickhouse-prod-data:
     driver: local

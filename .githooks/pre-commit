@@ -1,0 +1,65 @@
+#!/bin/bash
+# Git pre-commit hook - Automatically validates migrations before commit
+# Install: git config core.hooksPath .githooks
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+echo "🔍 Pre-commit: Checking migrations..."
+
+# Check if any migration files are being committed
+migration_files=$(git diff --cached --name-only | grep "migrations/.*\.sql$" || true)
+
+if [ -z "$migration_files" ]; then
+    # No migration files in this commit, skip checks
+    exit 0
+fi
+
+echo "Found migration files in commit:"
+echo "$migration_files"
+echo ""
+
+# Check for modified existing migrations (DANGEROUS!)
+for file in $migration_files; do
+    # Check if this file existed in the last commit
+    if git show HEAD:"$file" >/dev/null 2>&1; then
+        echo -e "${RED}❌ ERROR: Attempting to modify existing migration:${NC}"
+        echo "  $file"
+        echo ""
+        echo "Modifying existing migrations will cause checksum mismatches!"
+        echo "Instead, create a new migration with your changes."
+        echo ""
+        echo "To bypass this check (NOT RECOMMENDED):"
+        echo "  git commit --no-verify"
+        exit 1
+    fi
+done
+
+# Validate new migration file names
+for file in $migration_files; do
+    filename=$(basename "$file")
+    if ! echo "$filename" | grep -qE '^[0-9]{14}_[a-z_]+\.sql$'; then
+        echo -e "${RED}❌ ERROR: Invalid migration filename format:${NC}"
+        echo "  $file"
+        echo ""
+        echo "Expected format: YYYYMMDDHHMMSS_description.sql"
+        echo "Example: 20250111120000_add_user_preferences.sql"
+        exit 1
+    fi
+done
+
+# Check if migrations compile successfully
+echo "Testing compilation with new migrations..."
+if ! cargo build --quiet 2>/dev/null; then
+    echo -e "${RED}❌ ERROR: Compilation failed with new migrations${NC}"
+    echo ""
+    echo "Run 'cargo build' to see detailed errors"
+    echo "Fix compilation errors before committing"
+    exit 1
+fi
+
+echo -e "${GREEN}✅ All migration checks passed!${NC}"
+exit 0

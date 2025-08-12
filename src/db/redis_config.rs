@@ -1,5 +1,5 @@
-use std::time::Duration;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 /// Redis connection configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,7 +28,7 @@ impl RedisConfig {
                 std::env::var("REDIS_CONNECTION_TIMEOUT")
                     .ok()
                     .and_then(|s| s.parse().ok())
-                    .unwrap_or(5)
+                    .unwrap_or(5),
             ),
             // Command timeout should allow for complex operations while being responsive
             // 5 seconds allows for most Redis operations including slower ones
@@ -36,7 +36,7 @@ impl RedisConfig {
                 std::env::var("REDIS_COMMAND_TIMEOUT")
                     .ok()
                     .and_then(|s| s.parse().ok())
-                    .unwrap_or(5)
+                    .unwrap_or(5),
             ),
             retry_attempts: std::env::var("REDIS_RETRY_ATTEMPTS")
                 .ok()
@@ -46,19 +46,19 @@ impl RedisConfig {
                 std::env::var("REDIS_RETRY_DELAY_MS")
                     .ok()
                     .and_then(|s| s.parse().ok())
-                    .unwrap_or(100)
+                    .unwrap_or(100),
             ),
             idle_timeout: Duration::from_secs(
                 std::env::var("REDIS_IDLE_TIMEOUT")
                     .ok()
                     .and_then(|s| s.parse().ok())
-                    .unwrap_or(300) // 5 minutes
+                    .unwrap_or(300), // 5 minutes
             ),
             max_lifetime: Duration::from_secs(
                 std::env::var("REDIS_MAX_LIFETIME")
                     .ok()
                     .and_then(|s| s.parse().ok())
-                    .unwrap_or(3600) // 1 hour
+                    .unwrap_or(3600), // 1 hour
             ),
         }
     }
