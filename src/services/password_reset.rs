@@ -97,12 +97,11 @@ impl PasswordResetService {
 
                 // Perform a realistic delay equivalent to database operations
                 // This prevents timing attacks by ensuring similar response times
-                // Use consistent delay rather than sleep which can vary by system load
-                let start_time = std::time::Instant::now();
-                while start_time.elapsed().as_millis() < self.timing_attack_delay_ms as u128 {
-                    // Busy wait for more consistent timing
-                    std::hint::spin_loop();
-                }
+                // Use async sleep to avoid busy-waiting and high CPU usage
+                tokio::time::sleep(std::time::Duration::from_millis(
+                    self.timing_attack_delay_ms as u64,
+                ))
+                .await;
 
                 return Ok(None);
             },

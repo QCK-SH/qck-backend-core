@@ -2,6 +2,7 @@
 // This module handles the actual sending of emails through email providers
 
 use super::types::{EmailError, EmailMessage, ResendEmailPayload};
+use rand::Rng;
 use reqwest::Client;
 use std::sync::Arc;
 use std::time::Duration;
@@ -119,14 +120,23 @@ impl EmailSender {
                     last_error = Some(e);
 
                     if attempt < self.max_retries {
-                        // Exponential backoff with checked arithmetic and capped delay
+                        // Exponential backoff with jitter to prevent thundering herd
                         // Prevents overflow panics and caps delay at reasonable maximum
                         let max_delay = Duration::from_secs(60); // Cap at 60 seconds
                         let exp = (2_u32).checked_pow(attempt - 1).unwrap_or(u32::MAX);
-                        let delay = self.retry_delay.checked_mul(exp).unwrap_or(max_delay);
-                        let delay = if delay > max_delay { max_delay } else { delay };
+                        let base_delay = self.retry_delay.checked_mul(exp).unwrap_or(max_delay);
+                        let base_delay = if base_delay > max_delay {
+                            max_delay
+                        } else {
+                            base_delay
+                        };
 
-                        info!("Retrying in {:?}", delay);
+                        // Add random jitter (0-25% of base delay) to prevent thundering herd
+                        let mut rng = rand::thread_rng();
+                        let jitter_millis = rng.gen_range(0..=(base_delay.as_millis() / 4) as u64);
+                        let delay = base_delay + Duration::from_millis(jitter_millis);
+
+                        info!("Retrying in {:?} (with jitter)", delay);
                         tokio::time::sleep(delay).await;
                     }
                 },

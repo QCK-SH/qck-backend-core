@@ -170,15 +170,9 @@ impl JwtConfig {
     /// Create JWT config for tests without using lazy static
     #[cfg(test)]
     pub fn for_test() -> Self {
-        use std::env;
-
-        // Load test environment variables directly
-        dotenv::dotenv().ok();
-
-        let access_secret = env::var("JWT_ACCESS_SECRET")
-            .unwrap_or_else(|_| "test-access-secret-hs256".to_string());
-        let refresh_secret = env::var("JWT_REFRESH_SECRET")
-            .unwrap_or_else(|_| "test-refresh-secret-hs256".to_string());
+        // Use hardcoded test secrets and values for deterministic test behavior
+        let access_secret = "test-access-secret-hs256".to_string();
+        let refresh_secret = "test-refresh-secret-hs256".to_string();
 
         Self::build_from_params(
             access_secret,

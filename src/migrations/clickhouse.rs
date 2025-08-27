@@ -371,10 +371,10 @@ async fn apply_migration(
         return Err(format!("Invalid migration name: {}", name).into());
     }
 
-    // Use validated migration name directly (input is strictly validated above)
+    // ClickHouse HTTP API does not support parameterized queries; use strict validation and identifier escaping
     // Both database and name have been validated to contain only safe characters
     let record_sql = format!(
-        "INSERT INTO {}.schema_migrations (version) VALUES ('{}')",
+        "INSERT INTO `{}`.schema_migrations (version) VALUES ('{}')",
         config.database, name
     );
     execute_sql(client, config, &record_sql).await?;

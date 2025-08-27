@@ -502,9 +502,8 @@ impl RateLimitAnalytics {
         let mut blocked_count: u64 = 0;
 
         // Use SCAN with cursor to iterate through keys without blocking
+        // Removed MAX_ITERATIONS to ensure all keys are scanned in production
         let mut cursor = 0u64;
-        const MAX_ITERATIONS: usize = 100; // Limit to 100 iterations (10,000 keys max)
-        let mut iterations = 0;
 
         loop {
             let (new_cursor, keys): (u64, Vec<String>) = redis::cmd("SCAN")
@@ -525,16 +524,9 @@ impl RateLimitAnalytics {
             }
 
             cursor = new_cursor;
-            iterations += 1;
 
-            // Stop if we've completed the scan or hit the iteration limit
-            if cursor == 0 || iterations >= MAX_ITERATIONS {
-                if iterations >= MAX_ITERATIONS {
-                    warn!(
-                        "SCAN operation hit iteration limit of {} - results may be incomplete",
-                        MAX_ITERATIONS
-                    );
-                }
+            // Stop when we've completed the full scan
+            if cursor == 0 {
                 break;
             }
         }

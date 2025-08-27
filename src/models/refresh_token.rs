@@ -146,14 +146,20 @@ impl RefreshToken {
         // For tests only, use a deterministic salt when config is not available
         #[cfg(test)]
         {
-            // In test mode, check if we can access config without panicking
-            use std::panic;
-            let result = panic::catch_unwind(|| crate::app_config::config().jti_hash_salt.clone());
+            use std::env;
+            // Only allow deterministic salt if running under a test environment variable
+            // (e.g., RUST_TEST_THREADS is set by cargo test)
+            if env::var("RUST_TEST_THREADS").is_ok() || env::var("TEST_ENV").is_ok() {
+                // In test mode, check if we can access config without panicking
+                use std::panic;
+                let result =
+                    panic::catch_unwind(|| crate::app_config::config().jti_hash_salt.clone());
 
-            if result.is_err() {
-                // Config not available in unit tests, use test-only deterministic salt
-                // This is only compiled for test builds and never exposed in production
-                return b"test-only-jti-salt-never-use-in-production-this-is-insecure".to_vec();
+                if result.is_err() {
+                    // Config not available in unit tests, use test-only deterministic salt
+                    // This is only compiled for test builds and never exposed in production
+                    return b"test-only-jti-salt-never-use-in-production-this-is-insecure".to_vec();
+                }
             }
         }
 
