@@ -74,7 +74,10 @@ async fn test_redis_pool_creation_success() {
     // Verify pool is functional
     if let Ok(pool) = pool {
         let conn = pool.get_connection().await;
-        assert!(conn.is_ok(), "Should be able to get connection from new pool");
+        assert!(
+            conn.is_ok(),
+            "Should be able to get connection from new pool"
+        );
     }
 }
 
@@ -131,10 +134,10 @@ async fn test_redis_health_check_comprehensive() {
                 "Health check returned error: {:?}",
                 health.error
             );
-        }
+        },
         Err(e) => {
             panic!("Failed to create Redis pool for health check: {}", e);
-        }
+        },
     }
 }
 
@@ -174,10 +177,10 @@ async fn test_redis_connection_lifecycle() {
                 final_health.active_connections <= initial_active + 1,
                 "Active connections should decrease after return"
             );
-        }
+        },
         Err(e) => {
             panic!("Failed to create Redis pool: {}", e);
-        }
+        },
     }
 }
 
@@ -189,7 +192,7 @@ async fn test_redis_execute_with_isolation() {
     match RedisPool::new(config).await {
         Ok(pool) => {
             let mut guard = TestGuard::new(pool.clone());
-            
+
             // Use unique keys for test isolation
             let key = test_key("execute");
             let value = format!("test_value_{}", Uuid::new_v4());
@@ -230,10 +233,10 @@ async fn test_redis_execute_with_isolation() {
                 .await;
 
             assert!(!check_result.unwrap(), "Key should be cleaned up");
-        }
+        },
         Err(e) => {
             panic!("Failed to create Redis pool: {}", e);
-        }
+        },
     }
 }
 
@@ -252,14 +255,14 @@ async fn test_redis_concurrent_operations() {
             for i in 0..num_tasks {
                 let pool = pool.clone();
                 let barrier = barrier.clone();
-                
+
                 let handle = tokio::spawn(async move {
                     // Wait for all tasks to be ready
                     barrier.wait().await;
-                    
+
                     let key = test_key(&format!("concurrent_{}", i));
                     let value = format!("value_{}", i);
-                    
+
                     // Perform operation
                     let result = pool
                         .execute(|mut conn| {
@@ -273,11 +276,11 @@ async fn test_redis_concurrent_operations() {
                             }
                         })
                         .await;
-                    
+
                     assert!(result.is_ok(), "Task {} failed: {:?}", i, result.err());
                     assert_eq!(result.unwrap(), value, "Task {} got wrong value", i);
                 });
-                
+
                 handles.push(handle);
             }
 
@@ -288,11 +291,14 @@ async fn test_redis_concurrent_operations() {
 
             // Verify pool is still healthy after concurrent access
             let health = pool.health_check().await;
-            assert!(health.is_healthy, "Pool should remain healthy after concurrent access");
-        }
+            assert!(
+                health.is_healthy,
+                "Pool should remain healthy after concurrent access"
+            );
+        },
         Err(e) => {
             panic!("Failed to create Redis pool: {}", e);
-        }
+        },
     }
 }
 
@@ -311,7 +317,7 @@ async fn test_redis_production_performance() {
             for i in 0..operations {
                 let key = test_key(&format!("perf_{}", i));
                 let value = format!("value_{}", i);
-                
+
                 let op_start = Instant::now();
                 let result = pool
                     .execute(|mut conn| {
@@ -325,10 +331,10 @@ async fn test_redis_production_performance() {
                         }
                     })
                     .await;
-                
+
                 let op_latency = op_start.elapsed();
                 latencies.push(op_latency);
-                
+
                 assert!(result.is_ok(), "Operation {} failed", i);
             }
 
@@ -351,15 +357,16 @@ async fn test_redis_production_performance() {
 
             // Production requirements (relaxed for CI environments)
             let min_ops_per_second = if std::env::var("CI").is_ok() {
-                100.0  // Lower threshold for CI environments
+                100.0 // Lower threshold for CI environments
             } else {
-                1000.0  // Production threshold
+                1000.0 // Production threshold
             };
-            
+
             assert!(
                 ops_per_second > min_ops_per_second,
                 "Performance too low: {:.0} ops/s (need {}+)",
-                ops_per_second, min_ops_per_second
+                ops_per_second,
+                min_ops_per_second
             );
             assert!(
                 p95 < Duration::from_millis(50),
@@ -371,10 +378,10 @@ async fn test_redis_production_performance() {
                 "P99 latency too high: {:?} (need <100ms)",
                 p99
             );
-        }
+        },
         Err(e) => {
             panic!("Failed to create Redis pool: {}", e);
-        }
+        },
     }
 }
 
@@ -384,11 +391,11 @@ async fn test_redis_pool_exhaustion_recovery() {
 
     let mut config = RedisConfig::from_env();
     config.pool_size = 5; // Small pool for testing
-    
+
     match RedisPool::new(config.clone()).await {
         Ok(pool) => {
             let initial_health = pool.health_check().await;
-            
+
             // Take multiple connections to test pool behavior
             let mut connections = Vec::new();
             for i in 0..5 {
@@ -397,14 +404,14 @@ async fn test_redis_pool_exhaustion_recovery() {
                     Err(e) => panic!("Failed to get connection {}: {}", i, e),
                 }
             }
-            
+
             // Check pool state with all connections taken
             let loaded_health = pool.health_check().await;
             assert!(
                 loaded_health.active_connections >= 5,
                 "Should have at least 5 active connections"
             );
-            
+
             // Our pool can create additional connections on demand
             // This verifies the pool's dynamic growth capability
             let extra_conn_result = pool.get_connection().await;
@@ -412,7 +419,7 @@ async fn test_redis_pool_exhaustion_recovery() {
                 extra_conn_result.is_ok(),
                 "Pool should dynamically create additional connections when needed"
             );
-            
+
             if let Ok(extra_conn) = extra_conn_result {
                 // Verify we got an additional connection
                 // Note: Our pool implementation may reuse connections or create new ones
@@ -423,25 +430,25 @@ async fn test_redis_pool_exhaustion_recovery() {
                 );
                 pool.return_connection(extra_conn).await;
             }
-            
+
             // Return connections and verify pool recovery
             for conn in connections {
                 pool.return_connection(conn).await;
             }
-            
+
             // Allow time for async returns
             tokio::time::sleep(Duration::from_millis(100)).await;
-            
+
             // Verify pool recovered
             let final_health = pool.health_check().await;
             assert!(
                 final_health.active_connections <= initial_health.active_connections + 2,
                 "Active connections should return to near initial levels"
             );
-        }
+        },
         Err(e) => {
             panic!("Failed to create Redis pool: {}", e);
-        }
+        },
     }
 }
 
@@ -454,25 +461,26 @@ async fn test_redis_connection_validation() {
         Ok(pool) => {
             // Get a connection and verify it's valid
             let mut conn = pool.get_connection().await.expect("Should get connection");
-            
+
             // Manually test the connection
-            let ping_result: Result<String, _> = redis::cmd("PING")
-                .query_async(&mut conn)
-                .await;
-            
+            let ping_result: Result<String, _> = redis::cmd("PING").query_async(&mut conn).await;
+
             assert!(ping_result.is_ok(), "Connection should be valid");
             assert_eq!(ping_result.unwrap(), "PONG", "Should receive PONG response");
-            
+
             // Return connection
             pool.return_connection(conn).await;
-            
+
             // Verify pool validates connections (this tests the validation logic)
             let health = pool.health_check().await;
-            assert!(health.is_healthy, "Pool should validate connections properly");
-        }
+            assert!(
+                health.is_healthy,
+                "Pool should validate connections properly"
+            );
+        },
         Err(e) => {
             panic!("Failed to create Redis pool: {}", e);
-        }
+        },
     }
 }
 
@@ -484,7 +492,7 @@ async fn test_redis_metrics_accuracy() {
     match RedisPool::new(config.clone()).await {
         Ok(pool) => {
             let initial_metrics = pool.get_metrics().await;
-            
+
             // Perform some operations
             for i in 0..10 {
                 let key = test_key(&format!("metrics_{}", i));
@@ -499,24 +507,24 @@ async fn test_redis_metrics_accuracy() {
                     })
                     .await;
             }
-            
+
             let final_metrics = pool.get_metrics().await;
-            
+
             // Verify metrics changed
             assert!(
                 final_metrics.connections_created >= initial_metrics.connections_created,
                 "Connections created should not decrease"
             );
-            
+
             // Verify metrics are reasonable
             assert!(
                 final_metrics.connections_created <= (config.pool_size * 2) as u64,
                 "Should not create excessive connections"
             );
-        }
+        },
         Err(e) => {
             panic!("Failed to create Redis pool: {}", e);
-        }
+        },
     }
 }
 
@@ -538,14 +546,17 @@ async fn test_redis_graceful_shutdown() {
                     }
                 })
                 .await;
-            
+
             // Verify pool is working
             let health_before = pool.health_check().await;
-            assert!(health_before.is_healthy, "Pool should be healthy before shutdown");
-            
+            assert!(
+                health_before.is_healthy,
+                "Pool should be healthy before shutdown"
+            );
+
             // Shutdown the pool
             pool.shutdown().await;
-            
+
             // After shutdown, pool should have fewer connections or be empty
             // Note: Our implementation may still maintain some connections for health checks
             let health_after = pool.health_check().await;
@@ -553,7 +564,7 @@ async fn test_redis_graceful_shutdown() {
                 health_after.total_connections <= health_before.total_connections,
                 "Pool should have same or fewer connections after shutdown"
             );
-            
+
             // Cleanup test key
             let _ = pool
                 .execute(|mut conn| {
@@ -564,9 +575,9 @@ async fn test_redis_graceful_shutdown() {
                     }
                 })
                 .await;
-        }
+        },
         Err(e) => {
             panic!("Failed to create Redis pool: {}", e);
-        }
+        },
     }
 }

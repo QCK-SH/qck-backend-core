@@ -15,51 +15,19 @@ pub struct RedisConfig {
 }
 
 impl RedisConfig {
-    /// Create configuration from environment variables
+    /// Create configuration from centralized app config
     pub fn from_env() -> Self {
+        let config = &crate::CONFIG.redis;
+
         Self {
-            redis_url: std::env::var("REDIS_URL")
-                .unwrap_or_else(|_| "redis://redis:6379".to_string()),
-            pool_size: std::env::var("REDIS_POOL_SIZE")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(50), // Default 50 for high performance
-            connection_timeout: Duration::from_secs(
-                std::env::var("REDIS_CONNECTION_TIMEOUT")
-                    .ok()
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(5),
-            ),
-            // Command timeout should allow for complex operations while being responsive
-            // 5 seconds allows for most Redis operations including slower ones
-            command_timeout: Duration::from_secs(
-                std::env::var("REDIS_COMMAND_TIMEOUT")
-                    .ok()
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(5),
-            ),
-            retry_attempts: std::env::var("REDIS_RETRY_ATTEMPTS")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(3),
-            retry_delay: Duration::from_millis(
-                std::env::var("REDIS_RETRY_DELAY_MS")
-                    .ok()
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(100),
-            ),
-            idle_timeout: Duration::from_secs(
-                std::env::var("REDIS_IDLE_TIMEOUT")
-                    .ok()
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(300), // 5 minutes
-            ),
-            max_lifetime: Duration::from_secs(
-                std::env::var("REDIS_MAX_LIFETIME")
-                    .ok()
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(3600), // 1 hour
-            ),
+            redis_url: config.url.clone(),
+            pool_size: config.pool_size,
+            connection_timeout: Duration::from_secs(config.connection_timeout),
+            command_timeout: Duration::from_secs(config.command_timeout),
+            retry_attempts: config.retry_attempts,
+            retry_delay: Duration::from_millis(config.retry_delay_ms),
+            idle_timeout: Duration::from_secs(config.idle_timeout),
+            max_lifetime: Duration::from_secs(config.max_lifetime),
         }
     }
 

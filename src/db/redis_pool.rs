@@ -1,5 +1,5 @@
 use rand::{thread_rng, Rng};
-use redis::{aio::ConnectionManager, AsyncCommands, Client, RedisError};
+use redis::{aio::ConnectionManager, Client, RedisError};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -15,18 +15,6 @@ const MAX_RETRY_DELAY: Duration = Duration::from_secs(30);
 
 /// Timeout for connection validation checks
 const VALIDATION_TIMEOUT: Duration = Duration::from_millis(100);
-
-/// Helper function to create a task join error with operation context
-fn task_join_error(operation_index: usize, join_error: &tokio::task::JoinError) -> RedisError {
-    error!(
-        "Task join error in operation {}: {}",
-        operation_index, join_error
-    );
-    RedisError::from((
-        redis::ErrorKind::IoError,
-        "Task join error - check logs for operation details",
-    ))
-}
 
 /// Redis connection pool manager
 pub struct RedisPool {
@@ -116,7 +104,7 @@ impl RedisPool {
                     if successful % 10 == 0 {
                         info!("Created {} Redis connections", successful);
                     }
-                }
+                },
                 Err(e) => {
                     warn!("Failed to create connection {}: {}", i, e);
 
@@ -127,7 +115,7 @@ impl RedisPool {
                     if successful < 1 {
                         return Err(e);
                     }
-                }
+                },
             }
         }
 
@@ -161,14 +149,14 @@ impl RedisPool {
                     delay =
                         std::cmp::min(delay * 2 + Duration::from_millis(jitter), MAX_RETRY_DELAY);
                     retry_count += 1;
-                }
+                },
                 Err(e) => {
                     error!(
                         "Failed to create Redis connection after {} attempts",
                         self.config.retry_attempts
                     );
                     return Err(e);
-                }
+                },
             }
         }
     }
@@ -286,15 +274,20 @@ impl RedisPool {
         // Use lightweight PING command with timeout
         match tokio::time::timeout(
             VALIDATION_TIMEOUT,
-            redis::cmd("PING").query_async::<_, String>(conn)
-        ).await {
+            redis::cmd("PING").query_async::<_, String>(conn),
+        )
+        .await
+        {
             Ok(Ok(_)) => Ok(()),
             Ok(Err(e)) => Err(e),
             Err(_) => Err(RedisError::from((
-                redis::ErrorKind::IoError, 
+                redis::ErrorKind::IoError,
                 "Connection validation timeout",
-                format!("Connection validation timeout after {}ms", VALIDATION_TIMEOUT.as_millis())
-            )))
+                format!(
+                    "Connection validation timeout after {}ms",
+                    VALIDATION_TIMEOUT.as_millis()
+                ),
+            ))),
         }
     }
 
@@ -310,12 +303,12 @@ impl RedisPool {
             Ok((result, conn)) => {
                 self.return_connection(conn).await;
                 Ok(result)
-            }
+            },
             Err(e) => {
                 // Don't return failed connections to the pool
                 error!("Redis command failed: {}", e);
                 Err(e)
-            }
+            },
         }
     }
 
@@ -344,7 +337,7 @@ impl RedisPool {
                     total_connections: pool.len() as u32,
                     error: None,
                 }
-            }
+            },
             Err(e) => {
                 error!("Redis health check failed: {}", e);
                 RedisHealth {
@@ -354,62 +347,105 @@ impl RedisPool {
                     total_connections: 0,
                     error: Some(e.to_string()),
                 }
-            }
+            },
         }
     }
 
-    /// Test high-throughput operations
-    pub async fn test_high_throughput(&self, operations: usize) -> Result<Duration, RedisError> {
-        let start = Instant::now();
-        let mut tasks = Vec::new();
-
-        for i in 0..operations {
-            let pool = self.clone();
-            let task = tokio::spawn(async move {
-                pool.execute(|mut conn| async move {
-                    let key = format!("test:key:{}", i);
-                    let _: () = conn.set(&key, i).await?;
-                    let _: i32 = conn.get(&key).await?;
-                    let _: () = conn.del(&key).await?;
-                    Ok(((), conn))
-                })
-                .await
-            });
-            tasks.push((i, task));
-        }
-
-        // Wait for all operations to complete
-        for (operation_index, task) in tasks {
-            task.await
-                .map_err(|e| task_join_error(operation_index, &e))??;
-        }
-
-        Ok(start.elapsed())
-    }
-
-    /// Get pool metrics
+    /// Get pool metrics for monitoring
     pub async fn get_metrics(&self) -> RedisMetrics {
         let pool = self.connections.read().await;
-        // FIXED: Use atomic load for thread safety
-        let active = self.active_count.load(Ordering::Relaxed);
-        let created = self.connections_created.read().await;
-        let failed = self.connections_failed.read().await;
+        let created = *self.connections_created.read().await;
+        let failed = *self.connections_failed.read().await;
 
         RedisMetrics {
-            connections_created: *created,
-            connections_failed: *failed,
-            connections_active: active as u64,
+            connections_created: created,
+            connections_failed: failed,
+            connections_active: self.active_count.load(Ordering::Relaxed) as u64,
             connections_idle: pool.len() as u64,
             pool_size: self.config.pool_size as u64,
         }
     }
 
-    /// Shutdown the pool gracefully
+    // =============================================================================
+    // Redis Operations for Authentication (DEV-102)
+    // =============================================================================
+
+    /// Get a value by key with type conversion
+    pub async fn get<T: std::str::FromStr>(&self, key: &str) -> Result<Option<T>, RedisError> {
+        let mut conn = self.get_connection().await?;
+
+        match redis::cmd("GET")
+            .arg(key)
+            .query_async::<_, Option<String>>(&mut conn)
+            .await
+        {
+            Ok(Some(value)) => match value.parse::<T>() {
+                Ok(parsed) => Ok(Some(parsed)),
+                Err(_) => Ok(None),
+            },
+            Ok(None) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Set a value with expiry time in seconds
+    pub async fn set_with_expiry(
+        &self,
+        key: &str,
+        value: String,
+        expiry_seconds: usize,
+    ) -> Result<(), RedisError> {
+        let mut conn = self.get_connection().await?;
+        redis::cmd("SETEX")
+            .arg(key)
+            .arg(expiry_seconds)
+            .arg(value)
+            .query_async(&mut conn)
+            .await
+    }
+
+    /// Increment a counter with expiry (atomic operation using Lua script)
+    /// This ensures that INCR and EXPIRE are performed atomically.
+    pub async fn incr(&self, key: &str, expiry_seconds: usize) -> Result<i64, RedisError> {
+        let mut conn = self.get_connection().await?;
+
+        // Lua script for atomic INCR + EXPIRE
+        // This script increments the key and sets expiry in a single atomic operation
+        let script = redis::Script::new(
+            r#"
+                local key = KEYS[1]
+                local ttl = tonumber(ARGV[1])
+                local count = redis.call('INCR', key)
+                redis.call('EXPIRE', key, ttl)
+                return count
+            "#,
+        );
+
+        let count: i64 = script
+            .key(key)
+            .arg(expiry_seconds)
+            .invoke_async(&mut conn)
+            .await?;
+
+        Ok(count)
+    }
+
+    /// Delete a key
+    pub async fn del(&self, key: &str) -> Result<(), RedisError> {
+        let mut conn = self.get_connection().await?;
+        redis::cmd("DEL").arg(key).query_async(&mut conn).await
+    }
+
+    /// Shutdown the pool and close all connections
     pub async fn shutdown(&self) {
-        info!("Shutting down Redis connection pool");
+        // Clear all connections from the pool
         let mut pool = self.connections.write().await;
         pool.clear();
-        info!("Redis connection pool shut down");
+
+        // Reset the active count
+        self.active_count.store(0, Ordering::Relaxed);
+
+        info!("Redis pool shutdown complete");
     }
 }
 

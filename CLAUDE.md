@@ -1,125 +1,62 @@
-# QCK Backend - Complete Project Memory
+# QCK Backend - Project Memory
 
-> **This is the Single Source of Truth for the QCK Backend project**
-> 
-> **GitHub Repository**: https://github.com/QCK-SH/qck-backend
-> 
-> Rust-based monolithic backend API for the QCK URL shortener platform. This document contains everything needed to work on this project independently.
+> **Rust-based monolithic backend API for QCK URL shortener**
 
-## Project Context
+## 🚨 CRITICAL RULES
 
-This is the core backend service for QCK, handling all API operations, database interactions, and business logic. Built with Rust and Actix-web for maximum performance and reliability.
+**Task Delegation**: ALWAYS use Task tool with specialized subagents (`general-purpose`, `bug-hunter`, `debugger`, `api-documenter`, `code-reviewer`, `test-runner`, `codex`)
 
-## 🤖 CRITICAL: Task Delegation Protocol
+**Safety Check**: Run `git status` before file modifications. Stop if uncommitted changes exist.
 
-**MANDATORY: Always use specialized subagents via the Task tool instead of doing work directly.**
+**Git Commits**: Never mention "Claude" in commits/PRs. No AI references, no "Co-Authored-By", keep professional
 
-For ANY backend development task, you MUST:
-1. Identify the appropriate specialized subagent
-2. Use the Task tool to delegate the work
-3. Provide comprehensive context about the Rust/Actix-web stack
-4. Let the subagent handle implementation autonomously
+**GitHub PR Review**: Use single command for efficiency:
+```bash
+gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments --jq '.[] | {user: .user.login, created: .created_at, body: .body[0:200], path, line}'
+```
 
-**Recommended Subagents for Backend:**
-- `general-purpose`: API endpoint implementation, database integration
-- `bug-hunter`: Rust compilation errors, runtime issues
-- `debugger`: Test failures, performance problems
-- `api-documenter`: OpenAPI spec, endpoint documentation
-- `code-reviewer`: Rust code quality, SOLID principles
-- `test-runner`: Cargo test execution and analysis
-- `codex`: Architecture decisions, system design
+**Package Manager**: `cargo` only (never npm/yarn/pnpm)
 
-## 🚨 CRITICAL SAFETY RULE
+## Project Setup
 
-**ALWAYS CHECK GIT STATUS FIRST**
-Before starting ANY task that modifies files:
-1. Run `git status` to check for uncommitted changes
-2. If uncommitted changes exist, inform the user:
-   > "⚠️ You have uncommitted changes. Any work I do might be destructive. Please commit your changes before proceeding with this task."
-3. DO NOT proceed with file modifications until user confirms or commits
-4. This check is MANDATORY - no exceptions
-
-## Critical Rules
-
-- **GitHub PR Review Efficiency**: When checking for PR comments, ALWAYS use this single command first:
-  ```bash
-  gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments --jq '.[] | {user: .user.login, created: .created_at, body: .body[0:200], path, line}'
-  ```
-  This gets all comments with resolution status immediately. Don't waste API calls checking multiple endpoints.
-
-- **Package Manager**: Use `cargo` exclusively (never npm/yarn/pnpm)
-- **Database Access**: All databases run via docker-compose.yml in this directory
+- **Tech Stack**: Rust, Axum, PostgreSQL, Redis, ClickHouse
+- **Port**: :8080 | **Database UI**: :8081 (Adminer)
 - **Hot Reload**: Use `cargo-watch` for development
-- **API URL**: http://localhost:8080 (development)
-- **Testing**: Run `cargo test` before any commit
-- **Formatting**: Always run `cargo fmt` before commits
-- **Linting**: Always run `cargo clippy` and fix warnings
+- **Required**: `cargo fmt`, `cargo clippy`, `cargo test` before commits
 
-## Architecture Overview
-
-### Service Structure
-```
-qck-backend/
-├── src/
-│   ├── main.rs              # Application entry point
-│   ├── handlers/            # HTTP request handlers
-│   ├── services/            # Business logic layer
-│   ├── models/              # Database models
-│   ├── middleware/          # Custom middleware
-│   ├── utils/               # Utility functions
-│   └── config/              # Configuration management
-├── migrations/              # SQL migrations
-├── tests/                   # Integration tests
-└── docker-compose.yml       # All backend services
-```
-
-### Database Stack
-- **PostgreSQL**: Main data store (users, links, settings)
-- **Redis**: Cache layer and session storage
-- **ClickHouse**: Analytics and event tracking
-- **Adminer**: Database UI at http://localhost:8081
-
-## Development Workflow
-
-### Starting the Backend
+### Quick Start
 ```bash
 # Start all services
 docker-compose up -d
 
 # View logs
 docker-compose logs -f qck-api
-
-# Stop services
-docker-compose down
 ```
 
-### Common Tasks
+## Architecture
 
-#### Adding a New Endpoint
-1. Define route in @src/main.rs
-2. Create handler in @src/handlers/
-3. Implement business logic in @src/services/
-4. Add models in @src/models/ if needed
-5. Write tests in @tests/ or inline
-6. Update OpenAPI spec in @api-spec.yaml
-
-#### Database Migrations
-```bash
-# Create new migration
-sqlx migrate add migration_name
-
-# Run migrations
-sqlx migrate run
-
-# Revert last migration
-sqlx migrate revert
+### Structure
+```
+src/
+├── main.rs              # Application entry point
+├── handlers/            # HTTP request handlers
+├── services/            # Business logic layer
+├── models/              # Database models
+├── middleware/          # Custom middleware
+├── utils/               # Utility functions
+└── config/              # Configuration management
 ```
 
-## Code Standards
+### Database Stack
+- **PostgreSQL**: Main data store (users, links, settings)
+- **Redis**: Cache layer and session storage
+- **ClickHouse**: Analytics and event tracking
+
+## Development Standards
 
 ### Rust Conventions
-- Use `snake_case` for functions and variables
-- Use `PascalCase` for types and structs
+- Use `snake_case` for functions/variables
+- Use `PascalCase` for types/structs
 - Prefer `Result<T, E>` for error handling
 - Use `thiserror` for custom errors
 - Keep handlers thin, logic in services
@@ -155,25 +92,16 @@ struct ApiResponse<T> {
 
 ## Testing Strategy
 
-### Test Organization
-**✅ REQUIRED: Separate Test Files (NO inline #[cfg(test)] modules)**
+### Test Organization (REQUIRED: Separate Files)
 ```
-qck-backend/
-├── tests/                   # Integration tests
-│   ├── postgres_test.rs    # Database pool tests
-│   ├── redis_config_test.rs # Redis configuration tests
-│   ├── redis_pool_test.rs  # Redis pool tests
-│   └── api_endpoints_test.rs # API integration tests
-├── .env.test               # Test environment (auto-loaded)
-└── src/
-    ├── lib.rs             # Library exports for testing
-    └── modules/           # NO inline test modules
+tests/                   # Integration tests
+├── postgres_test.rs    # Database pool tests
+├── redis_config_test.rs # Redis configuration tests
+├── redis_pool_test.rs  # Redis pool tests
+└── api_endpoints_test.rs # API integration tests
 ```
 
-### Test Types
-- **Unit Tests**: Individual functions, mocked dependencies
-- **Integration Tests**: Full API endpoints with real connections
-- **Performance Tests**: Load testing (1000+ ops/second)
+**NO inline #[cfg(test)] modules allowed**
 
 ### Test Execution
 ```bash
@@ -185,35 +113,209 @@ cargo test --test redis_pool_test
 cargo test -- --nocapture
 ```
 
-**Details**: See @.claude/memory/architecture/test-organization-best-practices.md
+## Performance Requirements
 
-## Performance Guidelines
-
-### Production Scaling for 1M Clicks/Day
+### Production Scaling (1M Clicks/Day)
 - **Database**: 300 connections (12 avg/s, 100 peak/s)
 - **Redis**: 150 connections (95%+ cache hit ratio)
 - **Performance**: <50ms redirects, <1ms cache hits
 - **Resources**: API(1GB), PostgreSQL(2GB), Redis(512MB)
-
-**Details**: See @.claude/memory/architecture/production-scaling-1m-clicks.md
 
 ### General Performance
 - Database queries < 50ms
 - API responses < 200ms
 - Use connection pooling
 - Implement query caching
-- Batch operations when possible
-- Use indexes on foreign keys
+
+## Common Tasks
+
+### Adding New Endpoint
+1. Define route in src/main.rs
+2. Create handler in src/handlers/
+3. Implement business logic in src/services/
+4. Add models in src/models/ if needed
+5. Write tests in tests/
+6. Update OpenAPI spec
+
+### Database Migrations
+
+**⚠️ CRITICAL**: Follow this EXACT workflow for migrations. The `schema.rs` file is auto-generated but MUST be committed to version control.
+
+#### Step-by-Step Migration Workflow
+
+**Step 1: Create Migration**
+```bash
+# Install diesel CLI if needed
+cargo install diesel_cli --no-default-features --features postgres
+
+# Create new migration
+diesel migration generate your_migration_name
+
+# Edit the generated files:
+# - migrations/diesel/YYYY-MM-DD-HHMMSS_your_migration_name/up.sql
+# - migrations/diesel/YYYY-MM-DD-HHMMSS_your_migration_name/down.sql
+```
+
+**Step 2: Apply Migration & Update Schema**
+```bash
+# Restart container (migrations auto-run on startup via diesel-migrate.sh)
+docker compose --env-file .env.dev -f docker-compose.dev.yml restart qck-api-dev
+
+# Wait 5-10 seconds for migrations to complete
+
+# Copy the auto-generated schema from container
+docker cp qck-api-dev:/app/src/schema.rs src/schema.rs
+
+# Format the schema file
+cargo fmt
+```
+
+**Step 3: Verify & Commit**
+```bash
+# Verify the build works locally
+cargo build --lib
+
+# If build succeeds, commit BOTH migration and schema
+git add migrations/ src/schema.rs
+git commit -m "feat: add migration for [feature_name]
+
+- Migration: [describe database changes]
+- Updated schema.rs with latest structure"
+```
+
+#### Why This Workflow?
+1. **Migrations run automatically** on container startup via `diesel-migrate.sh`
+2. **Schema.rs is auto-generated** by Diesel after migrations
+3. **Schema.rs must be committed** so the project builds without a database
+4. **Never manually edit schema.rs** - it's always generated
+
+#### If schema.rs Gets Deleted
+```bash
+# Option 1: Restore from git
+git checkout HEAD -- src/schema.rs
+
+# Option 2: Regenerate from database
+docker exec qck-api-dev sh -c "RUST_LOG=error diesel print-schema 2>/dev/null" > src/schema.rs
+cargo fmt
+```
 
 ## Security Checklist
-
 - [ ] Input validation on all endpoints
 - [ ] SQL injection prevention (parameterized queries)
 - [ ] Rate limiting implemented
 - [ ] JWT validation on protected routes
 - [ ] Secrets in environment variables
 - [ ] CORS properly configured
-- [ ] Error messages don't leak sensitive info
+
+## Environment Variables
+Required in .env:
+```bash
+DATABASE_URL=postgresql://qck_user:qck_password@localhost:5432/qck_db
+REDIS_URL=redis://localhost:6379
+CLICKHOUSE_URL=http://localhost:8123
+JWT_SECRET=your-secret-here
+RUST_LOG=info,qck_backend=debug
+```
+
+## 📊 Linear Configuration
+
+### Backend Label Priority
+- **Primary Platform**: `backend` - ID: `3d9d6f26-756e-48f6-918b-b54c47dccac1`
+- **Common Types**: `api` (ff9a7ae0), `database` (9abb6b86), `auth` (50086f97)
+
+### Status Flow
+Todo → In Progress → In Review → QA → **waiting for review** → Done
+
+### Issue Management
+- Use `backend` label for all backend work
+- Link commits to Linear issues using issue ID
+- Mark "waiting for review" when complete
+- Document API changes in issue comments
+- Never mark "Done" directly
+
+## Testing
+
+### Running Tests in Docker (Recommended)
+
+**IMPORTANT**: Always run tests inside the Docker container where `libpq` is already installed:
+
+```bash
+# Start development environment
+docker-compose -f docker-compose.dev.yml up -d
+
+# Run all tests inside the container
+docker exec qck-api-dev cargo test
+
+# Run specific test file
+docker exec qck-api-dev cargo test --test postgres_test
+docker exec qck-api-dev cargo test --test redis_pool_test
+docker exec qck-api-dev cargo test --test jwt_service_test
+
+# Watch logs
+docker logs -f qck-api-dev
+```
+
+### Local Testing Setup (If Not Using Docker)
+
+**Note**: Running tests locally requires PostgreSQL client libraries (`libpq`):
+
+```bash
+# macOS - Install PostgreSQL client
+brew install libpq
+export PKG_CONFIG_PATH="/opt/homebrew/opt/libpq/lib/pkgconfig"
+
+# Linux - Install PostgreSQL client  
+apt-get install libpq-dev  # Debian/Ubuntu
+yum install postgresql-devel  # RHEL/CentOS
+
+# Then run tests with environment variables
+export DATABASE_URL="postgresql://qck_user:qck_password@localhost:12001/qck_db"
+export REDIS_URL="redis://localhost:12002"
+export CLICKHOUSE_URL="http://localhost:12003"
+cargo test
+```
+
+### Test Environment with docker-compose.test.yml
+
+```bash
+# Start test environment
+docker-compose -f docker-compose.test.yml up -d
+
+# Wait for services to be healthy
+sleep 10
+
+# Export test environment variables
+export DATABASE_URL="postgresql://qck_user:qck_password@localhost:15001/qck_test"
+export REDIS_URL="redis://localhost:15002"
+export CLICKHOUSE_URL="http://localhost:15003"
+export JWT_ACCESS_SECRET="test-access-secret-hs256"
+export JWT_REFRESH_SECRET="test-refresh-secret-hs256"
+export JWT_ACCESS_EXPIRY="3600"
+export JWT_REFRESH_EXPIRY="604800"
+export JWT_KEY_VERSION="1"
+export REDIS_CONNECTION_TIMEOUT="5"
+export REDIS_COMMAND_TIMEOUT="5"
+
+# Run all tests
+cargo test
+
+# Run specific test file
+cargo test --test postgres_test
+cargo test --test redis_pool_test
+cargo test --test jwt_service_test
+
+# Stop test environment
+docker-compose -f docker-compose.test.yml down
+```
+
+### Quick Test Script
+Use `./run-tests.sh` for automated test execution with proper environment setup.
+
+### Test Environment Ports
+- PostgreSQL: localhost:15001
+- Redis: localhost:15002
+- ClickHouse: localhost:15003 (HTTP), localhost:15004 (Native)
+- API: localhost:15000
 
 ## Common Issues & Solutions
 
@@ -230,248 +332,59 @@ cargo test -- --nocapture
 ### Performance Problems
 - Enable debug logging
 - Check slow query logs
-- Profile with `cargo flamegraph`
 - Monitor Redis hit rate
-
-## Environment Variables
-
-Required in @.env:
-```bash
-DATABASE_URL=postgresql://qck_user:qck_password@localhost:5432/qck_db
-REDIS_URL=redis://localhost:6379
-CLICKHOUSE_URL=http://localhost:8123
-JWT_SECRET=your-secret-here
-RUST_LOG=info,qck_backend=debug
-```
-
-## API Documentation
-
-- OpenAPI spec: @api-spec.yaml
-- Postman collection: @postman/qck-api.json
-- API docs will be generated in @apidocs/
-
-## Deployment Notes
-
-### Docker Build
-```bash
-docker build -t qck-backend .
-docker run -p 8080:8080 qck-backend
-```
-
-### Production Checklist
-- [ ] Environment variables set
-- [ ] Database migrations run
-- [ ] Redis cache warmed
-- [ ] Health checks passing
-- [ ] Monitoring configured
-- [ ] Logs aggregated
-
-## 📊 Linear Organization
-
-### Linear Projects Setup
-Create these 3 main projects in Linear:
-1. **QCK Core Platform** - Backend API + User Dashboard (tightly coupled)
-2. **QCK Admin & Operations** - Admin panel + system operations
-3. **QCK Marketing & Growth** - Marketing site + customer acquisition
-
-### Issue Hierarchy
-All items in Linear are Issues with parent-child relationships:
-- **Epic Issues** (Label: `epic`) → Major feature groups
-- **Feature Issues** (Label: `feature`) → Specific functionality
-- **Task Issues** (Label: `task`) → Individual work items
-
-### Label System (Multiple labels per issue)
-
-**Available Linear Labels with IDs:**
-
-**Platform Labels** (which component):
-- `backend` - Backend/API work (PRIMARY for this project) - ID: `3d9d6f26-756e-48f6-918b-b54c47dccac1`
-- `dashboard` - User dashboard/frontend - ID: `27849ae1-3d66-4ba3-be68-e11ccb021e4c`
-- `admin` - Admin panel - ID: `9a590464-9eb3-44a6-90dc-a04567eaabe3`
-- `marketing` - Marketing site - ID: `6fde7c66-dc69-4925-9b53-86ca9e95424d`
-
-**Type Labels** (what kind of work):
-- `api` - API endpoints (common for backend) - ID: `ff9a7ae0-453f-4c17-ba25-e8c398f7c875`
-- `auth` - Authentication - ID: `50086f97-bfe0-42bb-9a00-64886326031c`
-- `database` - Database work (common for backend) - ID: `9abb6b86-4fa1-4284-8370-1c57c2aa826a`
-- `ui-ux` - User interface - ID: `ebb950d8-8bea-4c17-b38b-2ed841981d93`
-- `security` - Security features - ID: `e5d152b5-1588-49f5-a9ef-40f9236d92aa`
-- `performance` - Optimization - ID: `cfc5252e-6cfd-4dc5-ac3e-a6593cd71e98`
-- `testing` - Tests - ID: `d797ba3c-a0d8-4fbd-8728-a00089ab84d2`
-- `deployment` - DevOps - ID: `b54ced60-745e-4ae3-8abc-7a361b93752f`
-
-**Hierarchy Labels**:
-- `EPIC` - Top-level grouping - ID: `b69ab092-259a-4a43-a284-8c54ab582524`
-- `Feature` - Mid-level functionality - ID: `d9c56e14-c8ba-4ded-8826-d6087a7378ab`
-- `Task` - Individual work items - ID: `acde3a19-1570-4abb-83e9-7425ab0eaed1`
-
-**Other Labels**:
-- `Improvement` - Enhancements - ID: `103a1ed8-fc60-43de-842f-705b4f56b377`
-- `Bug` - Bug fixes - ID: `f43c390a-3f87-4ca3-b47b-92148ee28a74`
-- `tech debt` - Technical debt - ID: `91cfb438-cf41-4131-89ff-d2d8a89d5398`
-- `Sub-Task` - Sub-tasks - ID: `e07e6bbe-33ff-4e9f-8280-a6f903729868`
-
-**Label Group Rules**:
-- Platform labels (`backend`, `dashboard`, `admin`, `marketing`) can be used together
-- Type labels (`api`, `auth`, `database`, `ui-ux`, `security`, `performance`, `testing`, `deployment`) are in the same group - only one per issue
-- Hierarchy labels (`EPIC`, `Feature`, `Task`) are in the same group - only one per issue
-
-### Backend-Specific Examples
-
-**Epic: "Authentication & Security"**
-- Labels: `epic`, `backend`, `auth`, `security`, `critical`
-- Children:
-  - **Feature: "User Registration System"**
-    - Labels: `feature`, `backend`, `api`, `auth`
-    - Children:
-      - **Task: "Build registration API endpoint"**
-        - Labels: `task`, `backend`, `api`, `auth`
-      - **Task: "Setup email verification"**
-        - Labels: `task`, `backend`, `api`, `auth`
-
-**Epic: "URL Shortening Engine"**
-- Labels: `epic`, `backend`, `api`, `database`, `critical`
-- Children:
-  - **Feature: "Link CRUD Operations"**
-    - Labels: `feature`, `backend`, `api`, `database`
-    - Children:
-      - **Task: "Implement Base62 encoding"**
-        - Labels: `task`, `backend`, `api`
-      - **Task: "Build link creation endpoint"**
-        - Labels: `task`, `backend`, `api`, `database`
-
-### Team Configuration
-- **Linear Team ID**: `8557f533-649e-476c-9d20-efe571bfe69c`
-- Always check for existing issues before creating new ones
-- Update issue progress and completion status regularly
-
-### Issue Status Workflow
-**IMPORTANT**: Never mark issues as "Done" directly. Always use "waiting for review" when completing work.
-
-- **Todo** - Unstarted tasks
-- **In Progress** - When actively working on something
-- **In Review** - When code is in review
-- **QA** - When it needs testing
-- **waiting for review** - When work is complete and needs human review
-- **waiting for merge** - When approved and ready to merge
-- **Done** - Only after human verification and approval
-- **Backlog** - Backlog items
-- **Canceled** - Canceled tasks
-- **Duplicate** - Duplicate issues
-
-### Issue Management Rules
-- Always check for existing Linear issues before starting work
-- Update issue status when starting work
-- Link commits to Linear issues using issue ID
-- Mark as "waiting for review" when complete
-- Include screenshots/logs for bug fixes
-- Document API changes in issue comments
-- Use `backend` label for all backend-specific work
 
 ## Git Workflow
 
-### Branch Naming
-- `feature/description` - New features
-- `fix/description` - Bug fixes
-- `refactor/description` - Code refactoring
-- `docs/description` - Documentation updates
-- `test/description` - Test additions/changes
-- `perf/description` - Performance improvements
+### Branches
+`feature/`, `fix/`, `refactor/`, `docs/`, `test/`, `perf/`
 
-### Commit Conventions
-Use conventional commits for clear history:
-- `feat:` - New feature
-- `fix:` - Bug fix
-- `docs:` - Documentation changes
-- `style:` - Code style changes (formatting, etc.)
-- `refactor:` - Code refactoring
-- `test:` - Test additions or changes
-- `perf:` - Performance improvements
-- `build:` - Build system changes
-- `ci:` - CI/CD changes
+### Commits
+`feat:`, `fix:`, `docs:`, `style:`, `refactor:`, `test:`, `perf:`, `build:`, `ci:`
 
 ### PR Requirements
-- Create PR for all changes
 - Include Linear issue ID in PR title
 - Pass all CI checks
 - Get at least one review
 - Squash and merge to main
 
-## Memory Breadcrumb System
+## 🧠 Recent Implementation
 
-### Directory Structure
-Every significant change MUST be documented in @.claude/memory/:
+### Migration from SQLx to Diesel (Completed Aug 2025)
+- Migrated all database operations from SQLx to Diesel ORM
+- Replaced PostgresPool wrapper with DieselPool using bb8
+- Updated all models to use Diesel's type system
+- Converted all tests to use Diesel async operations
+- **All 85 tests passing** (0 failures)
 
-```
-.claude/memory/
-├── features/           # Feature implementations
-│   └── 2025-08-08-redis-connection-pool.md
-├── tasks/             # Individual tasks completed
-├── fixes/             # Bug fixes and issues resolved
-├── architecture/      # Architecture decisions and changes
-│   ├── 2025-08-08-test-organization-best-practices.md
-│   └── 2025-08-08-production-scaling-1m-clicks.md
-└── index.md          # Master index of all changes
-```
+### Functions
+- `create_diesel_pool()` - Diesel connection pool with bb8
+- `RedisPool::new()` - Redis connection pool (DEV-91)
+- `comprehensive_health_check()` - Multi-service health check
+- `check_clickhouse_health()` - ClickHouse connectivity test
+- Embedded Diesel migrations via `diesel::embed_migrations!()`
 
-**See @.claude/memory/index.md for complete development history**
+### Key Decisions
+- HS256 JWT algorithm (HMAC SHA-256) per Linear DEV-113 (NOT ES256)
+- Diesel ORM with async support for PostgreSQL
+- Redis for session storage and token blacklisting
+- Separate test files (no inline #[cfg(test)] modules)
+- Centralized configuration in `app_config.rs` (JavaScript config.js pattern)
+- JWT validation with `leeway = 0` for strict expiry
+- <50ms redirect performance requirement
 
-### Memory File Template
-```markdown
-# [Type]: [Brief Description]
-Date: YYYY-MM-DD HH:MM
-Linear Issue: [ID or N/A]
-Status: [completed/in-progress/blocked]
+### Recently Completed (Aug 2025)
+- Fixed all JWT test error expectations (EncodingError not InvalidToken)
+- Consolidated dual config files into single `app_config.rs`
+- All routes using `/v1/` prefix
+- Database URL masking for security
+- Tests run inside Docker (libpq pre-installed)
 
-## Context
-- **Request**: [What was asked]
-- **Purpose**: [Why it's needed]
-- **Dependencies**: [Related features/tasks]
-
-## Implementation
-### Files Modified
-- `path/to/file.rs:120-145` - Added authentication middleware
-- `path/to/other.ts:50-75` - Updated API client
-
-### Key Code Changes
-\```rust
-// Example of significant code added
-fn authenticate_user() -> Result<User> {
-    // Implementation
-}
-\```
-
-## How It Works
-1. [Step-by-step explanation]
-2. [Data flow description]
-3. [Integration details]
-
-## Testing
-- Command: `cargo test auth_tests`
-- Expected: All tests pass
-- Coverage: 85%
-
-## Rollback
-- Revert commit: [hash]
-- Remove migration: `down.sql`
-- Restore config: [details]
-
-## Notes
-- [Any additional context]
-- [Lessons learned]
-- [Future improvements]
-```
-
-### Documentation Requirements
-For EVERY task/feature:
-1. Create memory file before starting
-2. Update as you progress
-3. Include all modified files with line numbers
-4. Document design decisions
-5. Add rollback instructions
-6. Update index.md
+### Architecture Notes
+- Production scaling: 300 DB connections, 150 Redis connections
+- Performance target: 1800-2000 Redis ops/second
+- Test organization: Separate files in tests/ directory
+- Docker-based development (docker-compose.dev.yml)
 
 ---
-
-*This file is the complete, self-contained documentation for the qck-backend project*
-*Always keep this documentation updated with changes*
+*Complete self-contained documentation for qck-backend. Always update with changes.*
