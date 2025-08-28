@@ -99,7 +99,7 @@ impl PasswordResetService {
                 // This prevents timing attacks by ensuring similar response times
                 // Use async sleep to avoid busy-waiting and high CPU usage
                 tokio::time::sleep(std::time::Duration::from_millis(
-                    self.timing_attack_delay_ms as u64,
+                    self.timing_attack_delay_ms,
                 ))
                 .await;
 

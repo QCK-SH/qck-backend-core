@@ -4,6 +4,20 @@ diesel::table! {
     use diesel::sql_types::*;
     use diesel::pg::sql_types::*;
 
+    _sqlx_migrations (version) {
+        version -> Int8,
+        description -> Text,
+        installed_on -> Timestamptz,
+        success -> Bool,
+        checksum -> Bytea,
+        execution_time -> Int8,
+    }
+}
+
+diesel::table! {
+    use diesel::sql_types::*;
+    use diesel::pg::sql_types::*;
+
     links (id) {
         id -> Uuid,
         #[max_length = 50]
@@ -95,7 +109,6 @@ diesel::table! {
         revoked_reason -> Nullable<Varchar>,
         #[max_length = 255]
         device_fingerprint -> Nullable<Varchar>,
-        // IP addresses stored as Text instead of Inet for portability across different databases and to avoid ipnetwork dependency. Trade-off: loses PostgreSQL's built-in IP validation and operators.
         ip_address -> Nullable<Text>,
         user_agent -> Nullable<Text>,
         updated_at -> Timestamptz,
@@ -133,6 +146,7 @@ diesel::joinable!(payments -> users (user_id));
 diesel::joinable!(refresh_tokens -> users (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
+    _sqlx_migrations,
     links,
     password_reset_tokens,
     payments,

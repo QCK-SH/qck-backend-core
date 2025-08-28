@@ -559,6 +559,7 @@ async fn clear_failed_login_attempts(state: &AppState, email: &str) {
 pub async fn register(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    _user_agent: Option<TypedHeader<UserAgent>>,
     Json(register_req): Json<RegisterRequest>,
 ) -> impl IntoResponse {
     // Step 1: Validate request
@@ -1497,7 +1498,8 @@ pub async fn forgot_password(
                 message: format!("Validation error: {}", error_msg),
                 data: None,
             }),
-        );
+        )
+            .into_response();
     }
 
     let email = match trim_and_validate_field(&payload.email, true) {
@@ -1510,7 +1512,8 @@ pub async fn forgot_password(
                     message: format!("Validation error: {}", e),
                     data: None,
                 }),
-            );
+            )
+                .into_response();
         },
     };
     let client_ip = addr.ip();
@@ -1540,7 +1543,8 @@ pub async fn forgot_password(
                                 .to_string(),
                             data: None,
                         }),
-                    );
+                    )
+                        .into_response();
                 }
             },
             Err(e) => {
@@ -1552,7 +1556,8 @@ pub async fn forgot_password(
                         message: "Service temporarily unavailable".to_string(),
                         data: None,
                     }),
-                );
+                )
+                    .into_response();
             },
         }
     }
@@ -1579,7 +1584,8 @@ pub async fn forgot_password(
                             .to_string(),
                     data: None,
                 }),
-            );
+            )
+                .into_response();
         },
         Ok(_) => {}, // Continue
         Err(e) => {
@@ -1591,7 +1597,8 @@ pub async fn forgot_password(
                     message: "Service temporarily unavailable".to_string(),
                     data: None,
                 }),
-            );
+            )
+                .into_response();
         },
     }
 
@@ -1640,7 +1647,7 @@ pub async fn forgot_password(
                 );
             }
 
-            (StatusCode::OK, Json(response))
+            (StatusCode::OK, Json(response)).into_response()
         },
         Err(e) => {
             tracing::error!("Failed to create password reset request: {}", e);
@@ -1652,6 +1659,7 @@ pub async fn forgot_password(
                     data: None,
                 }),
             )
+                .into_response()
         },
     }
 }
@@ -1689,7 +1697,8 @@ pub async fn reset_password(
                 message: format!("Validation error: {}", error_msg),
                 data: None,
             }),
-        );
+        )
+            .into_response();
     }
 
     // Validate that passwords match
@@ -1701,7 +1710,8 @@ pub async fn reset_password(
                 message: format!("Validation error: {}", e),
                 data: None,
             }),
-        );
+        )
+            .into_response();
     }
 
     let client_ip = addr.ip();
@@ -1730,7 +1740,8 @@ pub async fn reset_password(
                                 .to_string(),
                             data: None,
                         }),
-                    );
+                    )
+                        .into_response();
                 }
             },
             Err(e) => {
@@ -1742,7 +1753,8 @@ pub async fn reset_password(
                         message: "Service temporarily unavailable".to_string(),
                         data: None,
                     }),
-                );
+                )
+                    .into_response();
             },
         }
     }
@@ -1768,7 +1780,8 @@ pub async fn reset_password(
                     message: "Invalid or expired reset token".to_string(),
                     data: None,
                 }),
-            );
+            )
+                .into_response();
         },
         Err(e) => {
             tracing::error!("Failed to validate reset token: {}", e);
@@ -1779,7 +1792,8 @@ pub async fn reset_password(
                     message: "Service temporarily unavailable".to_string(),
                     data: None,
                 }),
-            );
+            )
+                .into_response();
         },
     };
 
@@ -1792,7 +1806,8 @@ pub async fn reset_password(
                 message: format!("Password validation failed: {}", e),
                 data: None,
             }),
-        );
+        )
+            .into_response();
     }
 
     // Hash the new password
@@ -1807,7 +1822,8 @@ pub async fn reset_password(
                     message: "Service temporarily unavailable".to_string(),
                     data: None,
                 }),
-            );
+            )
+                .into_response();
         },
     };
 
@@ -1827,7 +1843,8 @@ pub async fn reset_password(
                     message: "Service temporarily unavailable".to_string(),
                     data: None,
                 }),
-            );
+            )
+                .into_response();
         },
     };
 
@@ -1876,7 +1893,7 @@ pub async fn reset_password(
                             message: "Password has been successfully reset. You can now log in with your new password.".to_string(),
                             data: None,
                         }),
-                    );
+                    ).into_response();
                 },
             };
 
@@ -1903,7 +1920,7 @@ pub async fn reset_password(
                     message: "Password has been successfully reset. You can now log in with your new password.".to_string(),
                     data: None,
                 }),
-            )
+            ).into_response()
         },
         Err(e) => {
             tracing::error!("Failed to update user password: {}", e);
@@ -1915,6 +1932,7 @@ pub async fn reset_password(
                     data: None,
                 }),
             )
+                .into_response()
         },
     }
 }

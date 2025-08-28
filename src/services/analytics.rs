@@ -427,13 +427,13 @@ impl RateLimitAnalytics {
         redis::cmd("LPUSH")
             .arg(&key)
             .arg(&value)
-            .query_async::<_, ()>(&mut conn)
+            .query_async::<()>(&mut conn)
             .await?;
 
         redis::cmd("EXPIRE")
             .arg(&key)
             .arg(7 * 24 * 3600) // 7 days
-            .query_async::<_, ()>(&mut conn)
+            .query_async::<()>(&mut conn)
             .await?;
 
         Ok(())

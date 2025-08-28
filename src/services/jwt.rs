@@ -629,7 +629,7 @@ impl JwtService {
             Err(JwtError::TokenRevoked) => {
                 // Token is revoked - check if this is a reuse attack that should revoke the family
                 // We need to decode the JWT to get the JTI even though it's revoked
-                let header = decode_header(old_refresh_token)?;
+                let _header = decode_header(old_refresh_token)?;
                 let key = &self.config.refresh_decoding_key;
                 let mut validation = Validation::new(self.config.algorithm);
                 validation.validate_exp = false; // Don't validate expiry since we just want the claims
@@ -733,7 +733,7 @@ impl JwtService {
                                 if token.revoked_reason.as_deref() == Some("rotation") {
                                     // This is a reuse attack - someone is trying to use an already-rotated token!
                                     // Revoke entire family for security
-                                    let revoked_count = RefreshToken::revoke_token_family(
+                                    let _revoked_count = RefreshToken::revoke_token_family(
                                         tx,
                                         &token.token_family,
                                         "token_reuse_detected",
