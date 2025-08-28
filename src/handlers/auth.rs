@@ -555,15 +555,13 @@ async fn clear_failed_login_attempts(state: &AppState, email: &str) {
 }
 
 /// POST /auth/register - Register a new user account
-/// DEV-101: User Registration with Argon2 password hashing and email verification  
+/// DEV-101: User Registration with Argon2 password hashing and email verification
 pub async fn register(
-    State(_state): State<AppState>,
-    ConnectInfo(_addr): ConnectInfo<SocketAddr>,
+    State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     _user_agent: Option<TypedHeader<UserAgent>>,
-    Json(_register_req): Json<RegisterRequest>,
+    Json(register_req): Json<RegisterRequest>,
 ) -> impl IntoResponse {
-    (StatusCode::OK, Json(serde_json::json!({"message": "test"})))
-    /*
     // Step 1: Validate request
     if let Err(validation_errors) = register_req.validate() {
         let error_messages: Vec<String> = validation_errors
@@ -831,7 +829,6 @@ pub async fn register(
 
     tracing::info!("New user registered: {}", created_user.email);
     (StatusCode::CREATED, Json(response)).into_response()
-    */
 }
 
 /// POST /auth/refresh - Refresh access token using refresh token with rotation
@@ -1251,11 +1248,9 @@ pub async fn verify_email(
 
 /// POST /auth/resend-verification - Resend verification email
 pub async fn resend_verification(
-    State(_state): State<AppState>,
-    Json(_request): Json<ResendVerificationRequest>,
+    State(state): State<AppState>,
+    Json(request): Json<ResendVerificationRequest>,
 ) -> impl IntoResponse {
-    (StatusCode::OK, Json(serde_json::json!({"message": "test"})))
-    /*
     use crate::models::user::User;
     use crate::services::{EmailService, VerificationService};
 
@@ -1386,7 +1381,6 @@ pub async fn resend_verification(
             AuthError::InternalError.into_response()
         },
     }
-    */
 }
 
 /// GET /auth/verification-status - Check email verification status
@@ -1474,13 +1468,11 @@ pub async fn verification_status(
 /// Handle forgot password requests
 /// POST /auth/forgot-password
 pub async fn forgot_password(
-    State(_app_state): State<AppState>,
-    ConnectInfo(_addr): ConnectInfo<SocketAddr>,
-    _user_agent: Option<TypedHeader<UserAgent>>,
-    Json(_payload): Json<ForgotPasswordRequest>,
+    State(app_state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    user_agent: Option<TypedHeader<UserAgent>>,
+    Json(payload): Json<ForgotPasswordRequest>,
 ) -> impl IntoResponse {
-    (StatusCode::OK, Json(serde_json::json!({"message": "test"})))
-    /*
     // Validate input
     if let Err(validation_errors) = payload.validate() {
         let error_msg = validation_errors
@@ -1506,7 +1498,8 @@ pub async fn forgot_password(
                 message: format!("Validation error: {}", error_msg),
                 data: None,
             }),
-        );
+        )
+            .into_response();
     }
 
     let email = match trim_and_validate_field(&payload.email, true) {
@@ -1519,7 +1512,8 @@ pub async fn forgot_password(
                     message: format!("Validation error: {}", e),
                     data: None,
                 }),
-            );
+            )
+                .into_response();
         },
     };
     let client_ip = addr.ip();
@@ -1549,7 +1543,8 @@ pub async fn forgot_password(
                                 .to_string(),
                             data: None,
                         }),
-                    );
+                    )
+                        .into_response();
                 }
             },
             Err(e) => {
@@ -1561,7 +1556,8 @@ pub async fn forgot_password(
                         message: "Service temporarily unavailable".to_string(),
                         data: None,
                     }),
-                );
+                )
+                    .into_response();
             },
         }
     }
@@ -1588,7 +1584,8 @@ pub async fn forgot_password(
                             .to_string(),
                     data: None,
                 }),
-            );
+            )
+                .into_response();
         },
         Ok(_) => {}, // Continue
         Err(e) => {
@@ -1600,7 +1597,8 @@ pub async fn forgot_password(
                     message: "Service temporarily unavailable".to_string(),
                     data: None,
                 }),
-            );
+            )
+                .into_response();
         },
     }
 
@@ -1649,7 +1647,7 @@ pub async fn forgot_password(
                 );
             }
 
-            (StatusCode::OK, Json(response))
+            (StatusCode::OK, Json(response)).into_response()
         },
         Err(e) => {
             tracing::error!("Failed to create password reset request: {}", e);
@@ -1661,9 +1659,9 @@ pub async fn forgot_password(
                     data: None,
                 }),
             )
+                .into_response()
         },
     }
-    */
 }
 
 /// Handle password reset with token
@@ -1699,7 +1697,8 @@ pub async fn reset_password(
                 message: format!("Validation error: {}", error_msg),
                 data: None,
             }),
-        );
+        )
+            .into_response();
     }
 
     // Validate that passwords match
@@ -1711,7 +1710,8 @@ pub async fn reset_password(
                 message: format!("Validation error: {}", e),
                 data: None,
             }),
-        );
+        )
+            .into_response();
     }
 
     let client_ip = addr.ip();
@@ -1740,7 +1740,8 @@ pub async fn reset_password(
                                 .to_string(),
                             data: None,
                         }),
-                    );
+                    )
+                        .into_response();
                 }
             },
             Err(e) => {
@@ -1752,7 +1753,8 @@ pub async fn reset_password(
                         message: "Service temporarily unavailable".to_string(),
                         data: None,
                     }),
-                );
+                )
+                    .into_response();
             },
         }
     }
@@ -1778,7 +1780,8 @@ pub async fn reset_password(
                     message: "Invalid or expired reset token".to_string(),
                     data: None,
                 }),
-            );
+            )
+                .into_response();
         },
         Err(e) => {
             tracing::error!("Failed to validate reset token: {}", e);
@@ -1789,7 +1792,8 @@ pub async fn reset_password(
                     message: "Service temporarily unavailable".to_string(),
                     data: None,
                 }),
-            );
+            )
+                .into_response();
         },
     };
 
@@ -1802,7 +1806,8 @@ pub async fn reset_password(
                 message: format!("Password validation failed: {}", e),
                 data: None,
             }),
-        );
+        )
+            .into_response();
     }
 
     // Hash the new password
@@ -1817,7 +1822,8 @@ pub async fn reset_password(
                     message: "Service temporarily unavailable".to_string(),
                     data: None,
                 }),
-            );
+            )
+                .into_response();
         },
     };
 
@@ -1837,7 +1843,8 @@ pub async fn reset_password(
                     message: "Service temporarily unavailable".to_string(),
                     data: None,
                 }),
-            );
+            )
+                .into_response();
         },
     };
 
@@ -1886,7 +1893,7 @@ pub async fn reset_password(
                             message: "Password has been successfully reset. You can now log in with your new password.".to_string(),
                             data: None,
                         }),
-                    );
+                    ).into_response();
                 },
             };
 
@@ -1913,7 +1920,7 @@ pub async fn reset_password(
                     message: "Password has been successfully reset. You can now log in with your new password.".to_string(),
                     data: None,
                 }),
-            )
+            ).into_response()
         },
         Err(e) => {
             tracing::error!("Failed to update user password: {}", e);
@@ -1925,6 +1932,7 @@ pub async fn reset_password(
                     data: None,
                 }),
             )
+                .into_response()
         },
     }
 }

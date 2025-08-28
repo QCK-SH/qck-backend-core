@@ -2,7 +2,6 @@
 // This module handles the actual sending of emails through email providers
 
 use super::types::{EmailError, EmailMessage, ResendEmailPayload};
-use rand::Rng;
 use reqwest::Client;
 use std::sync::Arc;
 use std::time::Duration;
@@ -132,7 +131,9 @@ impl EmailSender {
                         };
 
                         // Add random jitter (0-25% of base delay) to prevent thundering herd
-                        let mut rng = rand::thread_rng();
+                        use rand::rngs::StdRng;
+                        use rand::{Rng, SeedableRng};
+                        let mut rng = StdRng::from_entropy();
                         let jitter_millis = rng.gen_range(0..=(base_delay.as_millis() / 4) as u64);
                         let delay = base_delay + Duration::from_millis(jitter_millis);
 

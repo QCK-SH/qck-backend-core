@@ -1,6 +1,7 @@
 // API Documentation handlers - modular structure
 pub mod auth;
 pub mod health;
+pub mod onboarding;
 pub mod schemas;
 pub mod swagger_ui;
 
@@ -68,6 +69,10 @@ fn build_openapi_spec() -> serde_json::Value {
                 "description": "User authentication and registration"
             },
             {
+                "name": "Onboarding",
+                "description": "User onboarding flow and plan selection"
+            },
+            {
                 "name": "Health",
                 "description": "Service health checks"
             }
@@ -81,6 +86,8 @@ fn build_openapi_spec() -> serde_json::Value {
             "/v1/auth/verification-status": auth::verification_status_endpoint(),
             "/v1/auth/forgot-password": auth::forgot_password_endpoint(),
             "/v1/auth/reset-password": auth::reset_password_endpoint(),
+            "/v1/onboarding/select-plan": onboarding::select_plan_endpoint(),
+            "/v1/onboarding/status": onboarding::onboarding_status_endpoint(),
             "/v1/health": health::health_endpoint(),
         },
         "components": {

@@ -274,7 +274,7 @@ impl RedisPool {
         // Use lightweight PING command with timeout
         match tokio::time::timeout(
             VALIDATION_TIMEOUT,
-            redis::cmd("PING").query_async::<_, String>(conn),
+            redis::cmd("PING").query_async::<String>(conn),
         )
         .await
         {
@@ -376,7 +376,7 @@ impl RedisPool {
 
         match redis::cmd("GET")
             .arg(key)
-            .query_async::<_, Option<String>>(&mut conn)
+            .query_async::<Option<String>>(&mut conn)
             .await
         {
             Ok(Some(value)) => match value.parse::<T>() {

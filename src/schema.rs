@@ -95,7 +95,6 @@ diesel::table! {
         revoked_reason -> Nullable<Varchar>,
         #[max_length = 255]
         device_fingerprint -> Nullable<Varchar>,
-        // IP addresses stored as Text instead of Inet for portability across different databases and to avoid ipnetwork dependency. Trade-off: loses PostgreSQL's built-in IP validation and operators.
         ip_address -> Nullable<Text>,
         user_agent -> Nullable<Text>,
         updated_at -> Timestamptz,

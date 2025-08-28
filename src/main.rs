@@ -17,6 +17,7 @@ pub use app_config::CONFIG;
 use axum::{
     extract::{Extension, State},
     http::{Method, StatusCode},
+    middleware as axum_middleware,
     response::{IntoResponse, Json},
     routing::get,
     Router,
@@ -35,7 +36,8 @@ use crate::{
         check_diesel_health, create_diesel_pool, mask_connection_string, DieselDatabaseConfig,
         RedisConfig, RedisPool,
     },
-    handlers::{auth_routes, docs as docs_handlers},
+    handlers::{auth_routes, docs as docs_handlers, onboarding_routes},
+    middleware::auth_middleware,
     services::{
         EmailService, JwtService, PasswordResetService, RateLimitService, SubscriptionService,
     },
@@ -278,6 +280,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/v1/docs/openapi.json", get(docs_handlers::serve_openapi_spec))
         // Authentication routes
         .nest("/v1/auth", auth_routes())
+        // Onboarding routes (protected with auth middleware)
+        .nest(
+            "/v1/onboarding",
+            onboarding_routes()
+                .route_layer(axum_middleware::from_fn_with_state(
+                    app_state.clone(),
+                    auth_middleware,
+                ))
+        )
         // API routes (to be added)
         .nest("/v1", api_routes())
         // Redirect routes (to be added)
