@@ -4,6 +4,7 @@
 
 pub mod auth;
 pub mod docs; // Modular documentation structure
+pub mod onboarding;
 
 use crate::app::AppState;
 use axum::{
@@ -27,4 +28,11 @@ pub fn auth_routes() -> Router<AppState> {
         // Password reset endpoints (DEV-106)
         .route("/forgot-password", post(auth::forgot_password))
         .route("/reset-password", post(auth::reset_password))
+}
+
+// Onboarding routes
+pub fn onboarding_routes() -> Router<AppState> {
+    Router::new()
+        .route("/select-plan", post(onboarding::select_plan))
+        .route("/status", get(onboarding::get_status))
 }

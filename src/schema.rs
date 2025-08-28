@@ -4,20 +4,6 @@ diesel::table! {
     use diesel::sql_types::*;
     use diesel::pg::sql_types::*;
 
-    _sqlx_migrations (version) {
-        version -> Int8,
-        description -> Text,
-        installed_on -> Timestamptz,
-        success -> Bool,
-        checksum -> Bytea,
-        execution_time -> Int8,
-    }
-}
-
-diesel::table! {
-    use diesel::sql_types::*;
-    use diesel::pg::sql_types::*;
-
     links (id) {
         id -> Uuid,
         #[max_length = 50]
@@ -146,7 +132,6 @@ diesel::joinable!(payments -> users (user_id));
 diesel::joinable!(refresh_tokens -> users (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
-    _sqlx_migrations,
     links,
     password_reset_tokens,
     payments,

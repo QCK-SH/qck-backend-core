@@ -1,10 +1,11 @@
 // OpenAPI schema definitions
 
+use super::onboarding;
 use serde_json::json;
 
 /// Return all schema definitions
 pub fn all_schemas() -> serde_json::Value {
-    json!({
+    let mut schemas = json!({
         "RegisterRequest": register_request_schema(),
         "RegisterResponse": register_response_schema(),
         "LoginRequest": login_request_schema(),
@@ -22,7 +23,18 @@ pub fn all_schemas() -> serde_json::Value {
         "ForgotPasswordResponse": forgot_password_response_schema(),
         "ResetPasswordRequest": reset_password_request_schema(),
         "ResetPasswordResponse": reset_password_response_schema(),
-    })
+    });
+
+    // Merge onboarding schemas
+    if let serde_json::Value::Object(ref mut map) = schemas {
+        if let serde_json::Value::Object(onboarding_map) = onboarding::onboarding_schemas() {
+            for (key, value) in onboarding_map {
+                map.insert(key, value);
+            }
+        }
+    }
+
+    schemas
 }
 
 fn register_request_schema() -> serde_json::Value {
