@@ -555,15 +555,12 @@ async fn clear_failed_login_attempts(state: &AppState, email: &str) {
 }
 
 /// POST /auth/register - Register a new user account
-/// DEV-101: User Registration with Argon2 password hashing and email verification  
+/// DEV-101: User Registration with Argon2 password hashing and email verification
 pub async fn register(
-    State(_state): State<AppState>,
-    ConnectInfo(_addr): ConnectInfo<SocketAddr>,
-    _user_agent: Option<TypedHeader<UserAgent>>,
-    Json(_register_req): Json<RegisterRequest>,
-) -> impl IntoResponse {
-    (StatusCode::OK, Json(serde_json::json!({"message": "test"})))
-    /*
+    State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Json(register_req): Json<RegisterRequest>,
+) -> axum::response::Response {
     // Step 1: Validate request
     if let Err(validation_errors) = register_req.validate() {
         let error_messages: Vec<String> = validation_errors
@@ -831,7 +828,6 @@ pub async fn register(
 
     tracing::info!("New user registered: {}", created_user.email);
     (StatusCode::CREATED, Json(response)).into_response()
-    */
 }
 
 /// POST /auth/refresh - Refresh access token using refresh token with rotation
@@ -1251,11 +1247,9 @@ pub async fn verify_email(
 
 /// POST /auth/resend-verification - Resend verification email
 pub async fn resend_verification(
-    State(_state): State<AppState>,
-    Json(_request): Json<ResendVerificationRequest>,
+    State(state): State<AppState>,
+    Json(request): Json<ResendVerificationRequest>,
 ) -> impl IntoResponse {
-    (StatusCode::OK, Json(serde_json::json!({"message": "test"})))
-    /*
     use crate::models::user::User;
     use crate::services::{EmailService, VerificationService};
 
@@ -1386,7 +1380,6 @@ pub async fn resend_verification(
             AuthError::InternalError.into_response()
         },
     }
-    */
 }
 
 /// GET /auth/verification-status - Check email verification status
@@ -1474,13 +1467,11 @@ pub async fn verification_status(
 /// Handle forgot password requests
 /// POST /auth/forgot-password
 pub async fn forgot_password(
-    State(_app_state): State<AppState>,
-    ConnectInfo(_addr): ConnectInfo<SocketAddr>,
-    _user_agent: Option<TypedHeader<UserAgent>>,
-    Json(_payload): Json<ForgotPasswordRequest>,
+    State(app_state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    user_agent: Option<TypedHeader<UserAgent>>,
+    Json(payload): Json<ForgotPasswordRequest>,
 ) -> impl IntoResponse {
-    (StatusCode::OK, Json(serde_json::json!({"message": "test"})))
-    /*
     // Validate input
     if let Err(validation_errors) = payload.validate() {
         let error_msg = validation_errors
@@ -1663,7 +1654,6 @@ pub async fn forgot_password(
             )
         },
     }
-    */
 }
 
 /// Handle password reset with token
