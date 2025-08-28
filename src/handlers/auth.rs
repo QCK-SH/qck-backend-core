@@ -560,7 +560,7 @@ pub async fn register(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(register_req): Json<RegisterRequest>,
-) -> axum::response::Response {
+) -> impl IntoResponse {
     // Step 1: Validate request
     if let Err(validation_errors) = register_req.validate() {
         let error_messages: Vec<String> = validation_errors
