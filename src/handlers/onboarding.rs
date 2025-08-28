@@ -2,11 +2,11 @@
 // Handles plan selection and onboarding flow
 
 use axum::{
-    extract::{Extension, State},
+    extract::State,
     http::StatusCode,
     response::{IntoResponse, Json},
 };
-use diesel::{prelude::*, ExpressionMethods, QueryDsl};
+use diesel::{ExpressionMethods, QueryDsl};
 use diesel_async::RunQueryDsl;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -47,7 +47,7 @@ pub struct SelectPlanData {
 /// POST /onboarding/select-plan - Select subscription plan during onboarding
 pub async fn select_plan(
     State(app_state): State<AppState>,
-    Extension(auth_user): Extension<AuthenticatedUser>,
+    auth_user: AuthenticatedUser,
     Json(payload): Json<SelectPlanRequest>,
 ) -> impl IntoResponse {
     // Validate the plan and price combination
@@ -215,7 +215,7 @@ pub async fn select_plan(
 /// GET /onboarding/status - Get current onboarding status
 pub async fn get_status(
     State(app_state): State<AppState>,
-    Extension(auth_user): Extension<AuthenticatedUser>,
+    auth_user: AuthenticatedUser,
 ) -> impl IntoResponse {
     #[derive(Debug, Serialize)]
     struct OnboardingStatusResponse {
