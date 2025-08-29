@@ -81,6 +81,7 @@ pub struct AppConfig {
     pub enable_metrics: bool,
     pub enable_tracing: bool,
     pub enable_rate_limiting: bool,
+    pub enable_swagger_ui: bool,
     pub disable_embedded_migrations: bool,
 
     // Nested configs for compatibility
@@ -251,6 +252,7 @@ pub struct FeatureConfig {
     pub enable_metrics: bool,
     pub enable_tracing: bool,
     pub enable_rate_limiting: bool,
+    pub enable_swagger_ui: bool,
 }
 
 impl AppConfig {
@@ -407,6 +409,7 @@ impl AppConfig {
         let enable_metrics = parse_bool_or_default("ENABLE_METRICS", "true");
         let enable_tracing = parse_bool_or_default("ENABLE_TRACING", "true");
         let enable_rate_limiting = parse_bool_or_default("ENABLE_RATE_LIMITING", "true");
+        let enable_swagger_ui = parse_bool_or_default("ENABLE_SWAGGER_UI", "false");
         let disable_embedded_migrations =
             parse_bool_or_default("DISABLE_EMBEDDED_MIGRATIONS", "false");
 
@@ -533,6 +536,7 @@ impl AppConfig {
             enable_metrics,
             enable_tracing,
             enable_rate_limiting,
+            enable_swagger_ui,
         };
 
         Ok(Self {
@@ -577,6 +581,7 @@ impl AppConfig {
             enable_metrics,
             enable_tracing,
             enable_rate_limiting,
+            enable_swagger_ui,
             disable_embedded_migrations,
             // Nested configs
             server,

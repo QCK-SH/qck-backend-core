@@ -265,19 +265,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             axum::http::header::AUTHORIZATION,
         ]);
 
-    // Build the application router
-    let app = Router::new()
+    // Build the application router - conditionally include Swagger UI
+    let mut app = Router::new()
         // Health check endpoints
         .route("/v1/health", get(comprehensive_health_check))
-        .route("/v1/metrics/rate-limiting", get(rate_limit_metrics_handler))
-        // API Documentation (legacy paths for backward compatibility)
-        .route("/docs", get(docs_handlers::redirect_to_docs))
-        .route("/docs/", get(docs_handlers::serve_swagger_ui))
-        .route("/docs/openapi.json", get(docs_handlers::serve_openapi_spec))
-        // Versioned API Documentation
-        .route("/v1/docs", get(docs_handlers::redirect_to_docs))
-        .route("/v1/docs/", get(docs_handlers::serve_swagger_ui))
-        .route("/v1/docs/openapi.json", get(docs_handlers::serve_openapi_spec))
+        .route("/v1/metrics/rate-limiting", get(rate_limit_metrics_handler));
+
+    // Conditionally add Swagger UI routes based on configuration
+    if config.enable_swagger_ui {
+        println!("🔧 Swagger UI: ENABLED at /v1/docs");
+        app = app
+            // API Documentation (legacy paths for backward compatibility)
+            .route("/docs", get(docs_handlers::redirect_to_docs))
+            .route("/docs/", get(docs_handlers::serve_swagger_ui))
+            .route("/docs/openapi.json", get(docs_handlers::serve_openapi_spec))
+            // Versioned API Documentation
+            .route("/v1/docs", get(docs_handlers::redirect_to_docs))
+            .route("/v1/docs/", get(docs_handlers::serve_swagger_ui))
+            .route("/v1/docs/openapi.json", get(docs_handlers::serve_openapi_spec));
+    } else {
+        println!("🔧 Swagger UI: DISABLED (set ENABLE_SWAGGER_UI=true to enable)");
+    }
+
+    // Complete router setup
+    let app = app
         // Authentication routes
         .nest("/v1/auth", auth_routes())
         // Onboarding routes (protected with auth middleware)
