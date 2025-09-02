@@ -211,62 +211,77 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         max_connections,
     };
 
-    // Configure CORS - NEVER use wildcard
+    // Configure CORS - Environment-aware wildcard handling
     info!(
-        "CORS: Configuring specific origins: {:?}",
-        config.cors_allowed_origins
+        "CORS: Configuring origins for {} environment: {:?}",
+        config.environment, config.cors_allowed_origins
     );
 
-    // Parse all origins, filtering out wildcards and invalid entries
-    let valid_origins: Vec<axum::http::HeaderValue> = config
+    // Check if wildcard is requested and handle based on environment
+    let has_wildcard = config
         .cors_allowed_origins
         .iter()
-        .filter(|origin| *origin != "*") // Never allow wildcard
-        .filter_map(|origin| {
-            match origin.parse::<axum::http::HeaderValue>() {
-                Ok(parsed) => {
-                    info!("  ✓ Valid CORS origin: {}", origin);
-                    Some(parsed)
-                },
-                Err(e) => {
-                    error!("  ✗ Invalid CORS origin '{}': {} - skipping", origin, e);
-                    None
+        .any(|origin| origin == "*");
+
+    let cors = if has_wildcard && !config.is_production() {
+        // Dev/Test/Staging with wildcard - use permissive CORS
+        info!("CORS: Using permissive mode (wildcard) for non-production");
+        CorsLayer::permissive()
+    } else {
+        // Production OR no wildcard - use specific origins
+        if has_wildcard && config.is_production() {
+            error!("CORS: Wildcard '*' detected in production - filtering out for security!");
+        }
+
+        // Parse all origins, filtering out wildcards in production
+        let valid_origins: Vec<axum::http::HeaderValue> = config
+            .cors_allowed_origins
+            .iter()
+            .filter(|origin| !config.is_production() || *origin != "*") // Filter wildcard only in production
+            .filter_map(|origin| {
+                match origin.parse::<axum::http::HeaderValue>() {
+                    Ok(parsed) => {
+                        info!("  ✓ Valid CORS origin: {}", origin);
+                        Some(parsed)
+                    },
+                    Err(e) => {
+                        error!("  ✗ Invalid CORS origin '{}': {} - skipping", origin, e);
+                        None
+                    }
                 }
-            }
-        })
-        .collect();
+            })
+            .collect();
 
-    if valid_origins.is_empty() {
-        error!(
-            "No valid CORS origins configured! Add valid origins to CORS_ALLOWED_ORIGINS"
-        );
-        return Err("No valid CORS origins configured".into());
-    }
+        if valid_origins.is_empty() {
+            error!("No valid CORS origins configured! Add valid origins to CORS_ALLOWED_ORIGINS");
+            return Err("No valid CORS origins configured".into());
+        }
 
-    // Build CORS layer with validated origins
-    // Note: Cannot use wildcard headers with credentials
-    let cors = CorsLayer::new()
-        .allow_origin(valid_origins)
-        .allow_methods([
-            Method::GET,
-            Method::POST,
-            Method::PUT,
-            Method::DELETE,
-            Method::OPTIONS,
-        ])
-        .allow_headers([
-            axum::http::header::CONTENT_TYPE,
-            axum::http::header::AUTHORIZATION,
-            axum::http::header::ACCEPT,
-            axum::http::header::ORIGIN,
-            axum::http::header::ACCESS_CONTROL_REQUEST_METHOD,
-            axum::http::header::ACCESS_CONTROL_REQUEST_HEADERS,
-        ])
-        .allow_credentials(true)
-        .expose_headers([
-            axum::http::header::CONTENT_TYPE,
-            axum::http::header::AUTHORIZATION,
-        ]);
+        // Build CORS layer with validated origins
+        // Note: Cannot use wildcard headers with credentials
+        CorsLayer::new()
+            .allow_origin(valid_origins)
+            .allow_methods([
+                Method::GET,
+                Method::POST,
+                Method::PUT,
+                Method::DELETE,
+                Method::OPTIONS,
+            ])
+            .allow_headers([
+                axum::http::header::CONTENT_TYPE,
+                axum::http::header::AUTHORIZATION,
+                axum::http::header::ACCEPT,
+                axum::http::header::ORIGIN,
+                axum::http::header::ACCESS_CONTROL_REQUEST_METHOD,
+                axum::http::header::ACCESS_CONTROL_REQUEST_HEADERS,
+            ])
+            .allow_credentials(true)
+            .expose_headers([
+                axum::http::header::CONTENT_TYPE,
+                axum::http::header::AUTHORIZATION,
+            ])
+    };
 
     // Build the application router - conditionally include Swagger UI
     let mut app = Router::new()
