@@ -43,13 +43,15 @@ impl OnboardingStatus {
     }
 }
 
-/// Subscription tier enumeration matching database enum
+/// Subscription tier enumeration matching your pricing structure
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, diesel::expression::AsExpression)]
 #[diesel(sql_type = diesel::sql_types::Text)]
 pub enum SubscriptionTier {
-    Pending, // User hasn't selected a tier yet (after registration, before email verification)
-    Free,
-    Pro,
+    Pending,    // User hasn't selected a tier yet (after registration, before email verification)
+    Free,       // $0/month - 10 active links, 1K analytics, 100 API req/hour
+    Pro,        // $19/month - 250 active links, 50K analytics, 1K API req/hour
+    Business,   // $49/month - 1K active links, 250K analytics, 5K API req/hour
+    Enterprise, // Custom - Unlimited everything, 15K+ API req/hour
 }
 
 impl SubscriptionTier {
@@ -58,6 +60,128 @@ impl SubscriptionTier {
             SubscriptionTier::Pending => "pending",
             SubscriptionTier::Free => "free",
             SubscriptionTier::Pro => "pro",
+            SubscriptionTier::Business => "business",
+            SubscriptionTier::Enterprise => "enterprise",
+        }
+    }
+
+    /// Get link creation rate limit per hour for this tier
+    /// For Business tier, pass user_count for scaling (1-50 users)
+    pub fn link_creation_rate_limit(&self, user_count: Option<u32>) -> u32 {
+        match self {
+            SubscriptionTier::Pending => 5, // Very limited for unverified
+            SubscriptionTier::Free => 100,  // 100 per hour
+            SubscriptionTier::Pro => 1000,  // 1K per hour
+            SubscriptionTier::Business => {
+                let users = user_count.unwrap_or(1).min(50).max(1); // 1-50 users
+                1000 + (users - 1) * 1000 // Base 1K + 1K per additional user
+            },
+            SubscriptionTier::Enterprise => 15000, // 15K per hour (custom)
+        }
+    }
+
+    /// Get API request rate limit per hour for this tier
+    /// For Business tier, scales with user count
+    pub fn api_rate_limit(&self, user_count: Option<u32>) -> u32 {
+        match self {
+            SubscriptionTier::Pending => 10, // Very limited for unverified
+            SubscriptionTier::Free => 100,   // Basic API access
+            SubscriptionTier::Pro => 1000,   // Full API access
+            SubscriptionTier::Business => {
+                let users = user_count.unwrap_or(1).min(50).max(1); // 1-50 users
+                1000 + (users - 1) * 1000 // Base 1K + 1K per additional user
+            },
+            SubscriptionTier::Enterprise => 15000, // Custom API limits
+        }
+    }
+
+    /// Get maximum active links for this tier
+    /// Business tier: Base 1K + 200 per additional user (up to 50 users = 10,800 links)
+    pub fn max_active_links(&self, user_count: Option<u32>) -> Option<u32> {
+        match self {
+            SubscriptionTier::Pending => Some(1), // Just for testing
+            SubscriptionTier::Free => Some(10),   // 10 active links
+            SubscriptionTier::Pro => Some(250),   // 250 active links
+            SubscriptionTier::Business => {
+                let users = user_count.unwrap_or(1).min(50).max(1); // 1-50 users
+                Some(1000 + (users - 1) * 200) // Base 1K + 200 per additional user
+            },
+            SubscriptionTier::Enterprise => None, // Unlimited
+        }
+    }
+
+    /// Get monthly click analytics limit for this tier
+    /// Business tier: Base 250K + 50K per additional user
+    pub fn monthly_analytics_limit(&self, user_count: Option<u32>) -> Option<u32> {
+        match self {
+            SubscriptionTier::Pending => Some(100), // Very limited
+            SubscriptionTier::Free => Some(1_000),  // 1K clicks/month
+            SubscriptionTier::Pro => Some(50_000),  // 50K clicks/month
+            SubscriptionTier::Business => {
+                let users = user_count.unwrap_or(1).min(50).max(1); // 1-50 users
+                Some(250_000 + (users - 1) * 50_000) // Base 250K + 50K per additional user
+            },
+            SubscriptionTier::Enterprise => None, // Unlimited
+        }
+    }
+
+    /// Get custom domains limit for this tier
+    /// Business tier: Base 10 + 1 per additional user
+    pub fn custom_domains_limit(&self, user_count: Option<u32>) -> u32 {
+        match self {
+            SubscriptionTier::Pending => 0, // No custom domains
+            SubscriptionTier::Free => 1,    // 1 custom domain
+            SubscriptionTier::Pro => 3,     // 3 custom domains
+            SubscriptionTier::Business => {
+                let users = user_count.unwrap_or(1).min(50).max(1); // 1-50 users
+                10 + (users - 1) * 1 // Base 10 + 1 per additional user
+            },
+            SubscriptionTier::Enterprise => 1000, // Unlimited (practically)
+        }
+    }
+
+    /// Get bulk operations limit for this tier
+    /// Business tier: Base 1K + 100 per additional user
+    pub fn bulk_operations_limit(&self, user_count: Option<u32>) -> u32 {
+        match self {
+            SubscriptionTier::Pending => 1, // Very limited
+            SubscriptionTier::Free => 10,   // Basic bulk (10 links)
+            SubscriptionTier::Pro => 100,   // 100 links/batch
+            SubscriptionTier::Business => {
+                let users = user_count.unwrap_or(1).min(50).max(1); // 1-50 users
+                1000 + (users - 1) * 100 // Base 1K + 100 per additional user
+            },
+            SubscriptionTier::Enterprise => 10000, // Very high limit
+        }
+    }
+
+    /// Get campaign management limit for this tier
+    /// Business tier: Base 10 + 10 per additional user
+    pub fn campaign_limit(&self, user_count: Option<u32>) -> u32 {
+        match self {
+            SubscriptionTier::Pending => 0, // No campaigns
+            SubscriptionTier::Free => 1,    // 1 basic campaign
+            SubscriptionTier::Pro => 5,     // 5 campaigns
+            SubscriptionTier::Business => {
+                let users = user_count.unwrap_or(1).min(50).max(1); // 1-50 users
+                10 + (users - 1) * 10 // Base 10 + 10 per additional user
+            },
+            SubscriptionTier::Enterprise => 1000, // Unlimited (practically)
+        }
+    }
+
+    /// Calculate monthly price for this tier with user count
+    /// Business tier: $49 base + $10 per additional user
+    pub fn monthly_price_usd(&self, user_count: Option<u32>) -> u32 {
+        match self {
+            SubscriptionTier::Pending => 0, // Free during setup
+            SubscriptionTier::Free => 0,    // Always free
+            SubscriptionTier::Pro => 19,    // $19/month
+            SubscriptionTier::Business => {
+                let users = user_count.unwrap_or(1).min(50).max(1); // 1-50 users
+                49 + (users - 1) * 10 // $49 base + $10 per additional user
+            },
+            SubscriptionTier::Enterprise => 0, // Custom pricing
         }
     }
 }
@@ -70,6 +194,8 @@ impl FromStr for SubscriptionTier {
             "pending" => Ok(SubscriptionTier::Pending),
             "free" => Ok(SubscriptionTier::Free),
             "pro" => Ok(SubscriptionTier::Pro),
+            "business" => Ok(SubscriptionTier::Business),
+            "enterprise" => Ok(SubscriptionTier::Enterprise),
             _ => Err(format!("Invalid subscription tier: {}", s)),
         }
     }

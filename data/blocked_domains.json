@@ -1,0 +1,71 @@
+{
+  "blocked_domains": {
+    "url_shorteners": {
+      "description": "Prevent URL shortener chains - we don't want short URLs pointing to other short URLs",
+      "domains": [
+        "bit.ly",
+        "tinyurl.com",
+        "goo.gl",
+        "ow.ly",
+        "is.gd",
+        "buff.ly",
+        "t.co",
+        "short.link",
+        "rebrand.ly"
+      ]
+    },
+    "local_addresses": {
+      "description": "Block local/private network addresses for security",
+      "domains": [
+        "localhost",
+        "127.0.0.1",
+        "0.0.0.0",
+        "::1"
+      ]
+    },
+    "malicious": {
+      "description": "Known malicious or phishing domains",
+      "domains": []
+    }
+  },
+  "blocked_tlds": {
+    "description": "Top-level domains that are blocked",
+    "tlds": [
+      "test",
+      "localhost",
+      "local",
+      "internal",
+      "example",
+      "invalid"
+    ]
+  },
+  "suspicious_patterns": {
+    "phishing_indicators": [
+      "download-free",
+      "click-here-now",
+      "limited-time-offer",
+      "verify-account",
+      "suspend-account",
+      "update-payment",
+      "confirm-identity",
+      "security-alert",
+      "unusual-activity",
+      "prize-winner",
+      "congratulations-winner",
+      "act-now",
+      "urgent-action-required"
+    ]
+  },
+  "private_ip_ranges": {
+    "description": "RFC 1918 and other private IP ranges",
+    "ranges": [
+      "10.0.0.0/8",
+      "172.16.0.0/12",
+      "192.168.0.0/16",
+      "169.254.0.0/16",
+      "127.0.0.0/8",
+      "fc00::/7",
+      "fe80::/10"
+    ]
+  }
+}

@@ -13,17 +13,30 @@ const MIGRATION_001: (&str, &str) = (
 );
 
 const MIGRATION_002: (&str, &str) = (
-    "20250812000002_link_stats_optimization",
-    include_str!("../../migrations/clickhouse/20250812000002_link_stats_optimization.sql"),
+    "002_urlhaus_threats",
+    include_str!("../../migrations/clickhouse/002_urlhaus_threats.sql"),
 );
 
 const MIGRATION_003: (&str, &str) = (
-    "20250812000003_link_totals_table",
-    include_str!("../../migrations/clickhouse/20250812000003_link_totals_table.sql"),
+    "003_link_stats_optimization",
+    include_str!("../../migrations/clickhouse/003_link_stats_optimization.sql"),
+);
+
+const MIGRATION_004: (&str, &str) = (
+    "004_link_totals_table",
+    include_str!("../../migrations/clickhouse/004_link_totals_table.sql"),
+);
+
+const MIGRATION_005: (&str, &str) = (
+    "005_seed_demo_link_events",
+    include_str!("../../migrations/clickhouse/005_seed_demo_link_events.sql"),
 );
 
 /// List of all migrations in execution order
-const MIGRATIONS: &[(&str, &str)] = &[MIGRATION_001, MIGRATION_002, MIGRATION_003];
+const MIGRATIONS: &[(&str, &str)] = &[MIGRATION_001, MIGRATION_002, MIGRATION_003, MIGRATION_004];
+
+/// List of seed migrations that should only run in non-production
+const SEED_MIGRATIONS: &[(&str, &str)] = &[MIGRATION_005];
 
 /// ClickHouse client configuration
 #[derive(Debug, Clone)]
@@ -79,6 +92,10 @@ pub async fn run_migrations() -> Result<usize, Box<dyn Error + Send + Sync>> {
     let config = ClickHouseConfig::default();
     let client = Client::new();
 
+    // Check if running in production
+    let app_config = crate::app_config::config();
+    let is_production = app_config.is_production();
+
     // Wait for ClickHouse to be ready
     wait_for_clickhouse(&client, &config).await?;
 
@@ -116,6 +133,42 @@ pub async fn run_migrations() -> Result<usize, Box<dyn Error + Send + Sync>> {
                 return Err(format!("Migration {} failed: {}", name, e).into());
             },
         }
+    }
+
+    // Apply seed migrations only in non-production environments
+    if !is_production {
+        info!("[CLICKHOUSE] Running seed migrations for non-production environment");
+
+        for (name, sql) in SEED_MIGRATIONS {
+            if applied_migrations.contains(&name.to_string()) {
+                debug!(
+                    "[CLICKHOUSE] Seed migration {} already applied, skipping",
+                    name
+                );
+                continue;
+            }
+
+            info!("[CLICKHOUSE] Applying seed migration: {}", name);
+
+            match apply_migration(&client, &config, name, sql).await {
+                Ok(()) => {
+                    applied_count += 1;
+                    info!(
+                        "[CLICKHOUSE] ✓ Successfully applied seed migration: {}",
+                        name
+                    );
+                },
+                Err(e) => {
+                    error!(
+                        "[CLICKHOUSE] ✗ Failed to apply seed migration {}: {}",
+                        name, e
+                    );
+                    return Err(format!("Seed migration {} failed: {}", name, e).into());
+                },
+            }
+        }
+    } else {
+        info!("[CLICKHOUSE] Skipping seed migrations in production environment");
     }
 
     if applied_count > 0 {
@@ -529,15 +582,26 @@ async fn get_migration_status_with_config(
 ) -> Result<MigrationStatus, Box<dyn Error + Send + Sync>> {
     let client = Client::new();
 
+    // Check if running in production
+    let app_config = crate::app_config::config();
+    let is_production = app_config.is_production();
+
     // Check if ClickHouse is available
     let is_healthy = check_clickhouse_health(&client, &config).await.is_ok();
+
+    // Calculate total migrations based on environment
+    let total_migrations = if is_production {
+        MIGRATIONS.len()
+    } else {
+        MIGRATIONS.len() + SEED_MIGRATIONS.len()
+    };
 
     if !is_healthy {
         return Ok(MigrationStatus {
             is_healthy: false,
             applied_count: 0,
-            total_migrations: MIGRATIONS.len(),
-            pending_count: MIGRATIONS.len(),
+            total_migrations,
+            pending_count: total_migrations,
             error: Some("ClickHouse not available".to_string()),
         });
     }
@@ -546,7 +610,6 @@ async fn get_migration_status_with_config(
         .await
         .unwrap_or_default();
     let applied_count = applied_migrations.len();
-    let total_migrations = MIGRATIONS.len();
     let pending_count = total_migrations.saturating_sub(applied_count);
 
     Ok(MigrationStatus {

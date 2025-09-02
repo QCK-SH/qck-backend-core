@@ -11,11 +11,17 @@ use tracing::{debug, info};
 
 /// Run all pending Diesel migrations
 /// Returns the number of migrations applied
+/// Skips seed migrations in production environment for safety
 pub async fn run_migrations(_pool: &DieselPool) -> Result<usize, Box<dyn Error + Send + Sync>> {
-    info!("[DIESEL] Starting Diesel migration process...");
+    let config = crate::app_config::config();
+    info!(
+        "[DIESEL] Starting Diesel migration process (environment: {:?})...",
+        config.environment
+    );
 
     // Get database URL from centralized config (migrations need sync connection)
-    let database_url = crate::app_config::config().database_url.clone();
+    let database_url = config.database_url.clone();
+    let is_production = config.is_production();
 
     // Run migrations in a blocking task since MigrationHarness is sync
     let applied_migrations =
@@ -33,28 +39,61 @@ pub async fn run_migrations(_pool: &DieselPool) -> Result<usize, Box<dyn Error +
                 .pending_migrations(MIGRATIONS)
                 .map_err(|e| format!("Failed to check pending migrations: {}", e))?;
 
-            let pending_count = pending_migrations.len();
+            // Filter out seed migrations in production
+            let (filtered_migrations, _original_count) = if is_production {
+                let original_count = pending_migrations.len();
+                let filtered: Vec<_> = pending_migrations
+                    .into_iter()
+                    .filter(|migration| {
+                        let migration_name = migration.name().to_string();
+                        let is_seed = migration_name.contains("seed")
+                            || migration_name.contains("demo")
+                            || migration_name.contains("_seed_");
+
+                        if is_seed {
+                            info!(
+                                "[DIESEL] SKIPPING seed migration in production: {}",
+                                migration_name
+                            );
+                        }
+
+                        !is_seed
+                    })
+                    .collect();
+
+                info!(
+                    "[DIESEL] Production environment: filtered {} seed migrations, {} remaining",
+                    original_count - filtered.len(),
+                    filtered.len()
+                );
+                (filtered, original_count)
+            } else {
+                let count = pending_migrations.len();
+                (pending_migrations, count)
+            };
+
+            let pending_count = filtered_migrations.len();
 
             if pending_count == 0 {
-                debug!("[DIESEL] No pending migrations found");
+                debug!("[DIESEL] No pending migrations to run (after filtering)");
                 return Ok(0);
             }
 
-            info!("[DIESEL] Found {} pending migrations", pending_count);
+            info!(
+                "[DIESEL] Found {} pending migrations to apply",
+                pending_count
+            );
 
-            // Run pending migrations
-            let applied = conn
-                .run_pending_migrations(MIGRATIONS)
-                .map_err(|e| format!("Failed to run migrations: {}", e))?;
-
-            let applied_count = applied.len();
-            info!("[DIESEL] Successfully applied {} migrations", applied_count);
-
-            // Log applied migrations for debugging
-            for migration in applied {
-                debug!("[DIESEL] Applied migration: {}", migration);
+            // Apply each filtered migration individually
+            let mut applied_count = 0;
+            for migration in filtered_migrations {
+                info!("[DIESEL] Applying migration: {}", migration.name());
+                conn.run_migration(&migration)
+                    .map_err(|e| format!("Failed to run migration {}: {}", migration.name(), e))?;
+                applied_count += 1;
             }
 
+            info!("[DIESEL] Successfully applied {} migrations", applied_count);
             Ok(applied_count)
         })
         .await

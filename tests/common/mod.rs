@@ -223,6 +223,7 @@ pub async fn setup_test_app() -> TestApp {
         subscription_service,
         email_service,
         password_reset_service,
+        clickhouse_analytics: None, // Disabled for tests
         max_connections: config.database.max_connections,
     };
 

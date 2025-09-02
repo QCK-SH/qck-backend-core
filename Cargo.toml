@@ -67,6 +67,7 @@ base64 = "0.21"
 
 # HTTP Client
 reqwest = { version = "0.11", features = ["json"] }
+scraper = "0.17"
 
 # Error Handling
 thiserror = "1.0"
@@ -75,12 +76,17 @@ anyhow = "1.0"
 # Rate Limiting
 governor = "0.6"
 
+# OpenAPI/Swagger Documentation
+utoipa = { version = "4.2", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-swagger-ui = { version = "6.0", features = ["axum"] }
+
 # Email (DEV-103)
 resend-rs = "0.2"
 handlebars = "5.1"  # For email templates
 
 # Analytics
-clickhouse = "0.11"
+clickhouse = { version = "0.13", features = ["chrono"] }
+woothee = "0.13"  # User agent parsing for device/browser detection
 
 # Security
 argon2 = "=0.5.3"
@@ -89,6 +95,7 @@ fastrand = "2.0"
 
 # Utilities
 lazy_static = "1.4"
+regex = "1.10"
 deadpool-redis = "0.14"
 async-trait = "0.1"
 
@@ -106,6 +113,11 @@ tokio = { version = "1.35", features = ["macros", "rt-multi-thread", "test-util"
 dotenv = "0.15"
 md5 = "0.7"
 serial_test = "3.0"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+# [[bench]]
+# name = "short_code_bench" 
+# harness = false
 
 [profile.release]
 opt-level = 3

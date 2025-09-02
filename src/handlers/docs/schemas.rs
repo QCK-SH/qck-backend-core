@@ -2,8 +2,45 @@
 
 use super::onboarding;
 use serde_json::json;
+use utoipa::OpenApi;
 
-/// Return all schema definitions
+// Import utoipa-generated schemas for Link CRUD operations
+use crate::models::link::{
+    CreateLinkRequest, Link, LinkFilter, LinkListResponse, LinkMetadata, LinkPagination,
+    LinkResponse, UpdateLinkRequest,
+};
+
+/// Define utoipa OpenAPI document for Link CRUD operations
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        crate::handlers::links::create_link,
+        crate::handlers::links::get_link,
+        crate::handlers::links::update_link,
+        crate::handlers::links::delete_link,
+        crate::handlers::links::list_links,
+        crate::handlers::links::get_link_stats,
+        crate::handlers::links::bulk_create_links,
+    ),
+    components(
+        schemas(
+            CreateLinkRequest,
+            UpdateLinkRequest,
+            LinkResponse,
+            LinkListResponse,
+            LinkPagination,
+            LinkFilter,
+            LinkMetadata,
+            Link,
+        )
+    ),
+    tags(
+        (name = "Links", description = "Link management endpoints")
+    )
+)]
+struct LinkApiDoc;
+
+/// Return all schema definitions including utoipa-generated ones
 pub fn all_schemas() -> serde_json::Value {
     let mut schemas = json!({
         "RegisterRequest": register_request_schema(),
@@ -24,6 +61,16 @@ pub fn all_schemas() -> serde_json::Value {
         "ResetPasswordRequest": reset_password_request_schema(),
         "ResetPasswordResponse": reset_password_response_schema(),
     });
+
+    // Merge utoipa-generated schemas for Link operations
+    let openapi = LinkApiDoc::openapi();
+    if let Some(components) = openapi.components {
+        if let serde_json::Value::Object(ref mut map) = schemas {
+            for (key, schema) in components.schemas {
+                map.insert(key, serde_json::to_value(schema).unwrap_or_default());
+            }
+        }
+    }
 
     // Merge onboarding schemas
     if let serde_json::Value::Object(ref mut map) = schemas {

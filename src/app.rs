@@ -21,5 +21,7 @@ pub struct AppState {
     pub subscription_service: Arc<SubscriptionService>,
     pub password_reset_service: Arc<PasswordResetService>,
     pub email_service: Arc<EmailService>,
+    pub clickhouse_analytics:
+        Option<Arc<crate::services::clickhouse_analytics::ClickHouseAnalyticsService>>,
     pub max_connections: u32,
 }

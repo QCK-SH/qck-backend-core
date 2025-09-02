@@ -185,13 +185,32 @@ impl RedisPool {
     ///
     /// Consider tuning `pool_size` or reviewing connection usage patterns if you observe frequent pool exhaustion.
     pub async fn get_connection(&self) -> Result<ConnectionManager, RedisError> {
+        // Check if we've reached the maximum connection limit
+        let current_active = self.active_count.load(Ordering::Relaxed);
+        let max_allowed = (self.config.pool_size * 2) as usize; // Allow 2x pool size as hard limit
+
         // First try with read lock to check availability
         {
             let pool = self.connections.read().await;
             if pool.is_empty() {
-                // Pool is empty, drop read lock and create new connection
+                // Pool is empty, check if we can create more connections
+                if current_active >= max_allowed {
+                    error!(
+                        "Redis connection limit reached: {}/{} connections active",
+                        current_active, max_allowed
+                    );
+                    return Err(RedisError::from((
+                        redis::ErrorKind::BusyLoadingError,
+                        "Connection pool exhausted and limit reached",
+                    )));
+                }
+
+                // Drop read lock and create new connection
                 drop(pool);
-                warn!("Redis pool exhausted, creating temporary connection beyond pool size");
+                warn!(
+                    "Redis pool exhausted ({}/{} active), creating temporary connection",
+                    current_active, self.config.pool_size
+                );
 
                 let conn = self.create_connection_with_retry().await?;
 
@@ -215,8 +234,22 @@ impl RedisPool {
             Ok(conn)
         } else {
             // Race condition: pool became empty between locks
+            if current_active >= max_allowed {
+                error!(
+                    "Redis connection limit reached after re-check: {}/{} connections active",
+                    current_active, max_allowed
+                );
+                return Err(RedisError::from((
+                    redis::ErrorKind::BusyLoadingError,
+                    "Connection pool exhausted and limit reached",
+                )));
+            }
+
             drop(pool);
-            warn!("Redis pool exhausted after re-check, creating temporary connection");
+            warn!(
+                "Redis pool exhausted after re-check ({}/{} active), creating temporary connection",
+                current_active, self.config.pool_size
+            );
 
             let conn = self.create_connection_with_retry().await?;
             let mut created = self.connections_created.write().await;
@@ -430,7 +463,7 @@ impl RedisPool {
         Ok(count)
     }
 
-    /// Delete a key
+    /// Delete a key from Redis
     pub async fn del(&self, key: &str) -> Result<(), RedisError> {
         let mut conn = self.get_connection().await?;
         redis::cmd("DEL").arg(key).query_async(&mut conn).await

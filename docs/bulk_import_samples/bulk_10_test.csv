@@ -1,0 +1,11 @@
+url,title,description,og_image,favicon_url
+https://www.apache.org,Apache Foundation,Open source software,https://www.apache.org/img/asf-og-image.png,https://www.apache.org/favicons/favicon.ico
+https://www.nginx.com,NGINX,Web server,https://www.nginx.com/wp-content/uploads/2021/08/NGINX-Part-of-F5-horiz-black-type-og.png,https://www.nginx.com/wp-content/uploads/2019/10/favicon.ico
+https://www.rabbitmq.com,RabbitMQ,Message broker,https://www.rabbitmq.com/img/rabbitmq-og.png,https://www.rabbitmq.com/favicon.ico
+https://kafka.apache.org,Apache Kafka,Event streaming,https://kafka.apache.org/images/apache-kafka.png,https://kafka.apache.org/favicon.ico
+https://www.ansible.com,Ansible,Automation platform,https://www.ansible.com/hubfs/Images/Red-Hat-Ansible-OG-image.png,https://www.ansible.com/hubfs/favicon.ico
+https://www.terraform.io,Terraform,Infrastructure as code,https://www.terraform.io/assets/images/og-image.png,https://www.terraform.io/favicon.ico
+https://www.packer.io,Packer,Image builder,https://www.packer.io/img/og-image.png,https://www.packer.io/favicon.ico
+https://www.vault.io,Vault,Secrets management,https://www.vaultproject.io/img/og-image.png,https://www.vaultproject.io/favicon.ico
+https://www.consul.io,Consul,Service mesh,https://www.consul.io/img/og-image.png,https://www.consul.io/favicon.ico
+https://www.nomadproject.io,Nomad,Workload orchestrator,https://www.nomadproject.io/img/og-image.png,https://www.nomadproject.io/favicon.ico

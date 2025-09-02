@@ -1,10 +1,14 @@
 // Production handlers only - test endpoints removed
 // DEV-113: JWT Token Validation handlers
 // DEV-102: Login API endpoint
+// DEV-68: Link Management API handlers
+// DEV-105: Link management handlers
 
 pub mod auth;
 pub mod docs; // Modular documentation structure
+pub mod links;
 pub mod onboarding;
+pub mod redirect;
 
 use crate::app::AppState;
 use axum::{

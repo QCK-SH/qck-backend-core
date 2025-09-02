@@ -158,6 +158,9 @@ coverage/
 
 # Database
 data/
+!data/blocked_domains.json
+!data/profanity_list.json
+!data/reserved_words.json
 *.sqlite
 *.sqlite3
 *.db

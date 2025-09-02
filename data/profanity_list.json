@@ -1,0 +1,28 @@
+{
+  "profanity_words": [
+    "fuck", "shit", "damn", "hell", "ass", "bitch", "bastard",
+    "dick", "cock", "pussy", "cunt", "piss", "crap", "sex",
+    "porn", "xxx", "nsfw", "wtf", "fck", "sht", "btch",
+    "asshole", "bullshit", "motherfucker", "fag", "faggot",
+    "slut", "whore", "retard", "nigger", "nigga", "kike",
+    "spic", "chink", "gook", "wetback", "beaner", "dyke",
+    "tranny", "shemale", "pedo", "pedophile", "rape", "rapist",
+    "nazi", "hitler", "cum", "jizz", "bukkake", "dildo",
+    "vibrator", "anal", "oral", "blowjob", "handjob", "tits",
+    "boobs", "penis", "vagina", "testicles", "scrotum"
+  ],
+  "leetspeak_mappings": {
+    "a": ["4", "@"],
+    "e": ["3"],
+    "i": ["1", "!"],
+    "o": ["0"],
+    "s": ["5", "$"],
+    "t": ["7"],
+    "l": ["1"],
+    "g": ["9"],
+    "b": ["8"]
+  },
+  "check_substrings": true,
+  "min_substring_length": 3,
+  "case_sensitive": false
+}

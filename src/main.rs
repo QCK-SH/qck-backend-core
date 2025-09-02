@@ -26,7 +26,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::{
@@ -36,7 +36,10 @@ use crate::{
         check_diesel_health, create_diesel_pool, mask_connection_string, DieselDatabaseConfig,
         RedisConfig, RedisPool,
     },
-    handlers::{auth_routes, docs as docs_handlers, onboarding_routes},
+    handlers::{
+        auth as auth_handlers, auth_routes, docs as docs_handlers, links as link_handlers,
+        onboarding_routes, redirect as redirect_handlers,
+    },
     middleware::auth_middleware,
     services::{
         EmailService, JwtService, PasswordResetService, RateLimitService, SubscriptionService,
@@ -67,73 +70,65 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize centralized config (loads all env vars ONCE)
     let config = crate::app_config::config();
     let bind_address = config.bind_address.clone();
-    println!("=== STARTING QCK BACKEND API ===");
+    info!("=== STARTING QCK BACKEND API ===");
     info!("Starting QCK Backend API on {}", bind_address);
 
     // Initialize Diesel database pool
-    println!("Initializing database pool...");
+    info!("Initializing database pool...");
     let db_config = DieselDatabaseConfig::default();
-    println!("Database URL: {}", mask_connection_string(&db_config.url));
+    info!("Database URL: {}", mask_connection_string(&db_config.url));
 
     let max_connections = db_config.max_connections;
     let diesel_pool = match create_diesel_pool(db_config).await {
         Ok(pool) => {
-            println!("✓ Database connection pool initialized successfully");
-            info!("Database connection pool initialized successfully");
+            info!("✓ Database connection pool initialized successfully");
             pool
         },
         Err(e) => {
-            println!("✗ Failed to initialize database pool: {}", e);
-            error!("Failed to initialize database pool: {}", e);
+            error!("✗ Failed to initialize database pool: {}", e);
             return Err(format!("Database initialization failed: {}", e).into());
         },
     };
 
     // Run embedded migrations (production/test environments)
     if crate::migrations::should_run_migrations() {
-        println!("Running embedded migrations...");
+        info!("Running embedded migrations...");
         let migration_config = crate::migrations::MigrationConfig::default();
 
         match crate::migrations::run_all_migrations(&diesel_pool, migration_config).await {
             Ok(()) => {
-                println!("✓ All migrations completed successfully");
-                info!("All migrations completed successfully");
+                info!("✓ All migrations completed successfully");
             },
             Err(e) => {
-                println!("✗ Migration failed: {}", e);
-                error!("Migration failed: {}", e);
+                error!("✗ Migration failed: {}", e);
                 return Err(format!("Migration failed: {}", e).into());
             },
         }
     } else {
-        println!("Embedded migrations disabled - using external migration scripts");
         info!("Embedded migrations disabled - using external migration scripts");
     }
 
     // Initialize Redis pool
-    println!("Initializing Redis pool...");
+    info!("Initializing Redis pool...");
     let redis_config = RedisConfig::from_env();
     let redis_pool = match RedisPool::new(redis_config).await {
         Ok(pool) => {
-            println!("✓ Redis connection pool initialized successfully");
-            info!("Redis connection pool initialized successfully");
+            info!("✓ Redis connection pool initialized successfully");
             pool
         },
         Err(e) => {
-            println!("✗ Failed to initialize Redis pool: {}", e);
-            error!("Failed to initialize Redis pool: {}", e);
+            error!("✗ Failed to initialize Redis pool: {}", e);
             return Err(format!("Redis initialization failed: {}", e).into());
         },
     };
 
     // Initialize rate limiting service and configuration
-    println!("Initializing rate limiting service...");
+    info!("Initializing rate limiting service...");
     let rate_limit_config = Arc::new(RateLimitingConfig::from_env());
 
     // Validate rate limiting configuration
     if let Err(e) = rate_limit_config.validate() {
-        println!("✗ Rate limiting configuration validation failed: {}", e);
-        error!("Rate limiting configuration validation failed: {}", e);
+        error!("✗ Rate limiting configuration validation failed: {}", e);
         return Err(format!("Rate limiting configuration invalid: {}", e).into());
     }
 
@@ -144,55 +139,62 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         redis_pool.clone(),
         analytics_sample_rate,
     ));
-    println!(
+    info!(
         "✓ Rate limiting service initialized successfully (analytics enabled with {}% sampling)",
         analytics_sample_rate * 100.0
     );
-    info!("Rate limiting service initialized successfully with analytics");
 
     // Initialize JWT service with Diesel pool
-    println!("Initializing JWT service...");
+    info!("Initializing JWT service...");
     let jwt_service =
         match JwtService::from_env_with_diesel(diesel_pool.clone(), redis_pool.clone()) {
             Ok(service) => {
-                println!("✓ JWT service initialized successfully");
-                info!("JWT service initialized successfully");
+                info!("✓ JWT service initialized successfully");
                 Arc::new(service)
             },
             Err(e) => {
-                println!("✗ Failed to initialize JWT service: {}", e);
-                error!("Failed to initialize JWT service: {}", e);
+                error!("✗ Failed to initialize JWT service: {}", e);
                 return Err(format!("JWT service initialization failed: {}", e).into());
             },
         };
 
     // Initialize subscription service
-    println!("Initializing subscription service...");
+    info!("Initializing subscription service...");
     let subscription_service = Arc::new(SubscriptionService::new());
-    println!("✓ Subscription service initialized successfully");
-    info!("Subscription service initialized successfully");
+    info!("✓ Subscription service initialized successfully");
 
     // Initialize password reset service
-    println!("Initializing password reset service...");
+    info!("Initializing password reset service...");
     let password_reset_service = Arc::new(PasswordResetService::new(diesel_pool.clone()));
-    println!("✓ Password reset service initialized successfully");
-    info!("Password reset service initialized successfully");
+    info!("✓ Password reset service initialized successfully");
 
     // Initialize email service
-    println!("Initializing email service...");
+    info!("Initializing email service...");
     let email_service = match EmailService::new(config.email.clone()) {
         Ok(service) => {
-            println!("✓ Email service initialized successfully");
-            info!("Email service initialized successfully");
+            info!("✓ Email service initialized successfully");
             Arc::new(service)
         },
         Err(e) => {
-            println!("✓ Email service initialization failed: {}", e);
-            info!("Email service initialization failed: {}", e);
+            warn!("⚠ Email service initialization failed: {}", e);
             // For development, continue without email service but log the issue
             // In production, you might want to fail here depending on requirements
             return Err(format!("Email service initialization failed: {}", e).into());
         },
+    };
+
+    // Initialize ClickHouse analytics service (unified service for all ClickHouse operations)
+    info!("Initializing ClickHouse analytics service...");
+    let clickhouse_analytics = if !config.clickhouse_url.is_empty() {
+        let client = crate::db::create_clickhouse_client();
+
+        // Create unified ClickHouse analytics service (handles both analytics and event tracking)
+        Some(Arc::new(
+            crate::services::clickhouse_analytics::ClickHouseAnalyticsService::new(client),
+        ))
+    } else {
+        warn!("ClickHouse URL not configured, click tracking and analytics will be disabled");
+        None
     };
 
     // Create shared application state
@@ -205,11 +207,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         subscription_service,
         password_reset_service,
         email_service,
+        clickhouse_analytics,
         max_connections,
     };
 
     // Configure CORS - NEVER use wildcard
-    println!(
+    info!(
         "CORS: Configuring specific origins: {:?}",
         config.cors_allowed_origins
     );
@@ -222,11 +225,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filter_map(|origin| {
             match origin.parse::<axum::http::HeaderValue>() {
                 Ok(parsed) => {
-                    println!("  ✓ Valid CORS origin: {}", origin);
+                    info!("  ✓ Valid CORS origin: {}", origin);
                     Some(parsed)
                 },
                 Err(e) => {
-                    eprintln!("  ✗ Invalid CORS origin '{}': {} - skipping", origin, e);
+                    error!("  ✗ Invalid CORS origin '{}': {} - skipping", origin, e);
                     None
                 }
             }
@@ -234,8 +237,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
 
     if valid_origins.is_empty() {
-        eprintln!(
-            "ERROR: No valid CORS origins configured! Add valid origins to CORS_ALLOWED_ORIGINS"
+        error!(
+            "No valid CORS origins configured! Add valid origins to CORS_ALLOWED_ORIGINS"
         );
         return Err("No valid CORS origins configured".into());
     }
@@ -273,18 +276,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Conditionally add Swagger UI routes based on configuration
     if config.enable_swagger_ui {
-        println!("🔧 Swagger UI: ENABLED at /v1/docs");
+        info!("🔧 Swagger UI: ENABLED at /v1/docs");
         app = app
-            // API Documentation (legacy paths for backward compatibility)
-            .route("/docs", get(docs_handlers::redirect_to_docs))
-            .route("/docs/", get(docs_handlers::serve_swagger_ui))
-            .route("/docs/openapi.json", get(docs_handlers::serve_openapi_spec))
             // Versioned API Documentation
             .route("/v1/docs", get(docs_handlers::redirect_to_docs))
             .route("/v1/docs/", get(docs_handlers::serve_swagger_ui))
             .route("/v1/docs/openapi.json", get(docs_handlers::serve_openapi_spec));
     } else {
-        println!("🔧 Swagger UI: DISABLED (set ENABLE_SWAGGER_UI=true to enable)");
+        info!("🔧 Swagger UI: DISABLED (set ENABLE_SWAGGER_UI=true to enable)");
     }
 
     // Complete router setup
@@ -300,10 +299,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     auth_middleware,
                 ))
         )
-        // API routes (to be added)
-        .nest("/v1", api_routes())
-        // Redirect routes (to be added)
-        .nest("/r", redirect_routes())
+        // API routes (protected with auth middleware)
+        .nest("/v1", api_routes()
+            .route_layer(axum_middleware::from_fn_with_state(
+                app_state.clone(),
+                auth_middleware,
+            )))
+        // Short URL redirects at root level (qck.sh/abc123)
+        .route("/{short_code}", get(handlers::redirect::redirect_to_url))
+        .route("/{short_code}/preview", get(handlers::redirect::preview_url))
         // Add middleware
         .layer(
             ServiceBuilder::new()
@@ -311,11 +315,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .layer(cors)
                 .layer(Extension(app_state.clone()))
         )
-        .with_state(app_state);
+        .with_state(app_state.clone());
+
+    // Start URLhaus threat intelligence updater
+    crate::utils::urlhaus_client::spawn_urlhaus_updater();
+    info!("URLhaus threat intelligence updater started");
+
+    // Start background tasks for click count synchronization
+    info!("Starting background tasks for click tracking synchronization...");
+    crate::services::background_tasks::initialize_background_tasks(app_state).await;
+    info!("Background task manager started - syncing click counts every 5 minutes");
 
     // Parse and bind to address
     let addr: SocketAddr = bind_address.parse()?;
-    println!("Starting HTTP server on {}...", addr);
+    info!("Starting HTTP server on {}...", addr);
 
     // Create the server with ConnectInfo support for client IP tracking
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -328,16 +341,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-// API routes (placeholder)
+// API routes for link management
 fn api_routes() -> Router<AppState> {
-    Router::new()
-    // TODO: Add API routes here (links, analytics, etc.)
-}
+    use axum::routing::{delete, get, post, put};
+    use handlers::links;
 
-// Redirect routes (placeholder)
-fn redirect_routes() -> Router<AppState> {
     Router::new()
-    // TODO: Add redirect routes here
+        // Link management routes (protected)
+        .route("/links", post(links::create_link).get(links::list_links))
+        .route("/links/bulk", post(links::bulk_create_links))
+        .route("/links/check-alias/{alias}", get(links::check_alias_availability))
+        .route("/links/custom", post(links::create_custom_link))
+        .route("/links/{id}", get(links::get_link).put(links::update_link).delete(links::delete_link))
+        .route("/links/{id}/stats", get(links::get_link_stats))
 }
 
 // Health check handler
@@ -418,18 +434,11 @@ async fn comprehensive_health_check(State(state): State<AppState>) -> impl IntoR
 async fn check_clickhouse_health() -> Result<i64, Box<dyn std::error::Error>> {
     use std::time::Instant;
 
-    let clickhouse_url = crate::app_config::config().clickhouse_url.clone();
-    let client = reqwest::Client::new();
-
     let start = Instant::now();
-    let response = client
-        .get(format!("{}/ping", clickhouse_url))
-        .send()
-        .await?;
+    let clickhouse_client = crate::db::create_clickhouse_client();
 
-    if !response.status().is_success() {
-        return Err("ClickHouse ping failed".into());
-    }
+    // Use the client's health_check method
+    clickhouse_client.health_check().await?;
 
     let latency = start.elapsed().as_millis() as i64;
     Ok(latency)

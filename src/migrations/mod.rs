@@ -40,12 +40,8 @@ pub async fn run_all_migrations(
         config.environment
     );
 
-    // Skip migrations in development if using external scripts
-    if config.environment == "development" {
-        info!("[MIGRATIONS] Development environment detected - migrations may be handled by external scripts");
-        warn!("[MIGRATIONS] Embedded migrations skipped in development mode");
-        return Ok(());
-    }
+    // Note: Migrations now run in all environments including development
+    // This ensures ClickHouse tables are properly created for testing
 
     let mut migration_count = 0;
 
@@ -115,10 +111,7 @@ pub fn should_run_migrations() -> bool {
         return false;
     }
 
-    // Check environment
-    if config.is_development() {
-        false // Use external scripts in development
-    } else {
-        true // Use embedded migrations in test/prod and default
-    }
+    // Always run migrations in all environments
+    // This ensures ClickHouse tables are created for development testing
+    true
 }

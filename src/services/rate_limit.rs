@@ -540,46 +540,44 @@ impl RateLimitService {
 pub struct SubscriptionLimits;
 
 impl SubscriptionLimits {
-    /// Get rate limit configuration for subscription tier
-    pub fn get_tier_config(tier: &str) -> RateLimitConfig {
-        match tier {
-            "free" => RateLimitConfig {
-                max_requests: 100,
-                window_seconds: 3600, // 1 hour
-                burst_limit: Some(5),
-                block_duration: 300, // 5 minutes
-                distributed: true,
+    /// Get rate limit configuration for subscription tier using new SubscriptionTier enum
+    pub fn get_tier_config(
+        tier: &crate::models::user::SubscriptionTier,
+        user_count: Option<u32>,
+    ) -> RateLimitConfig {
+        RateLimitConfig {
+            max_requests: tier.link_creation_rate_limit(user_count),
+            window_seconds: 3600, // 1 hour window
+            burst_limit: Some(match tier {
+                crate::models::user::SubscriptionTier::Pending => 2, // Very low burst for unverified
+                crate::models::user::SubscriptionTier::Free => 5,    // Small burst allowance
+                crate::models::user::SubscriptionTier::Pro => 25,    // Moderate burst
+                crate::models::user::SubscriptionTier::Business => 100, // High burst for teams
+                crate::models::user::SubscriptionTier::Enterprise => 500, // Very high burst
+            }),
+            block_duration: match tier {
+                crate::models::user::SubscriptionTier::Pending => 600, // 10 minutes penalty
+                crate::models::user::SubscriptionTier::Free => 300,    // 5 minutes
+                crate::models::user::SubscriptionTier::Pro => 90,      // 1.5 minutes
+                crate::models::user::SubscriptionTier::Business => 60, // 1 minute
+                crate::models::user::SubscriptionTier::Enterprise => 30, // 30 seconds
             },
-            "personal" => RateLimitConfig {
-                max_requests: 1000,
-                window_seconds: 3600,
-                burst_limit: Some(25),
-                block_duration: 90, // 1.5 minutes
-                distributed: true,
-            },
-            "pro" => RateLimitConfig {
-                max_requests: 5000,
-                window_seconds: 3600,
-                burst_limit: Some(100),
-                block_duration: 60, // 1 minute
-                distributed: true,
-            },
-            "enterprise" => RateLimitConfig {
-                max_requests: 15000,
-                window_seconds: 3600,
-                burst_limit: Some(300),
-                block_duration: 30, // 30 seconds
-                distributed: true,
-            },
-            "api" => RateLimitConfig {
-                max_requests: 50000,
-                window_seconds: 3600,
-                burst_limit: Some(1000),
-                block_duration: 10, // Very short cooldown
-                distributed: true,
-            },
-            _ => RateLimitConfig::default_api(), // Unknown tier gets default
+            distributed: true,
         }
+    }
+
+    /// Legacy string-based method for backward compatibility
+    pub fn get_tier_config_legacy(tier: &str) -> RateLimitConfig {
+        use crate::models::user::SubscriptionTier;
+        let subscription_tier = match tier {
+            "pending" => SubscriptionTier::Pending,
+            "free" => SubscriptionTier::Free,
+            "personal" | "pro" => SubscriptionTier::Pro, // Map "personal" to Pro
+            "business" => SubscriptionTier::Business,
+            "enterprise" => SubscriptionTier::Enterprise,
+            _ => SubscriptionTier::Free, // Default to Free for unknown tiers
+        };
+        Self::get_tier_config(&subscription_tier, None)
     }
 
     /// Check if tier has unlimited access to specific endpoint
@@ -608,20 +606,24 @@ mod tests {
 
     #[test]
     fn test_subscription_tier_configs() {
-        let free_config = SubscriptionLimits::get_tier_config("free");
+        use crate::models::user::SubscriptionTier;
+
+        let free_config = SubscriptionLimits::get_tier_config(&SubscriptionTier::Free, None);
         assert_eq!(free_config.max_requests, 100);
 
-        let enterprise_config = SubscriptionLimits::get_tier_config("enterprise");
+        let enterprise_config =
+            SubscriptionLimits::get_tier_config(&SubscriptionTier::Enterprise, None);
         assert_eq!(enterprise_config.max_requests, 15000);
 
-        let personal_config = SubscriptionLimits::get_tier_config("personal");
-        assert_eq!(personal_config.max_requests, 1000);
+        let pro_config = SubscriptionLimits::get_tier_config(&SubscriptionTier::Pro, None);
+        assert_eq!(pro_config.max_requests, 1000);
 
-        let api_config = SubscriptionLimits::get_tier_config("api");
-        assert_eq!(api_config.max_requests, 50000);
+        let business_config =
+            SubscriptionLimits::get_tier_config(&SubscriptionTier::Business, Some(5));
+        assert_eq!(business_config.max_requests, 5000); // 1K base + 5 users * 800/user
 
-        let unknown_config = SubscriptionLimits::get_tier_config("unknown");
-        assert_eq!(unknown_config.max_requests, 1000); // Should get default
+        let pending_config = SubscriptionLimits::get_tier_config(&SubscriptionTier::Pending, None);
+        assert_eq!(pending_config.max_requests, 5); // Pending tier gets very limited access
     }
 
     #[test]

@@ -158,12 +158,21 @@ diesel migration generate your_migration_name
 
 **Step 2: Apply Migration & Update Schema**
 ```bash
-# Restart container (migrations auto-run on startup via diesel-migrate.sh)
-docker compose --env-file .env.dev -f docker-compose.dev.yml restart qck-api-dev
+# IMPORTANT: Load database URL from .env.dev
+source ../env.dev
+
+# Run migrations locally
+diesel migration run
+
+# Generate/update schema.rs locally
+diesel print-schema > src/schema.rs
+
+# OR if using Docker (migrations auto-run on startup via diesel-migrate.sh)
+docker compose --env-file ../.env.dev -f ../docker-compose.dev.yml restart qck-api-dev
 
 # Wait 5-10 seconds for migrations to complete
 
-# Copy the auto-generated schema from container
+# CRITICAL: Copy the auto-generated schema from container (required every time)
 docker cp qck-api-dev:/app/src/schema.rs src/schema.rs
 
 # Format the schema file
@@ -208,14 +217,21 @@ cargo fmt
 - [ ] CORS properly configured
 
 ## Environment Variables
-Required in .env:
+
+**IMPORTANT**: Always use `../.env.dev` for development configuration. This file contains all database URLs, ports, and credentials for local development.
+
+Required in `../.env.dev`:
 ```bash
-DATABASE_URL=postgresql://qck_user:qck_password@localhost:5432/qck_db
-REDIS_URL=redis://localhost:6379
-CLICKHOUSE_URL=http://localhost:8123
-JWT_SECRET=your-secret-here
-RUST_LOG=info,qck_backend=debug
+# Check .env.dev for actual values - DO NOT hardcode URLs
+# The .env.dev file is the single source of truth for:
+# - DATABASE_URL (PostgreSQL connection)
+# - REDIS_URL (Redis connection)  
+# - CLICKHOUSE_URL (ClickHouse connection)
+# - All JWT secrets and configuration
+# - Port mappings and service endpoints
 ```
+
+**Never use hardcoded database URLs. Always reference .env.dev for the current configuration.**
 
 ## 📊 Linear Configuration
 
@@ -268,12 +284,13 @@ export PKG_CONFIG_PATH="/opt/homebrew/opt/libpq/lib/pkgconfig"
 apt-get install libpq-dev  # Debian/Ubuntu
 yum install postgresql-devel  # RHEL/CentOS
 
-# Then run tests with environment variables
-export DATABASE_URL="postgresql://qck_user:qck_password@localhost:12001/qck_db"
-export REDIS_URL="redis://localhost:12002"
-export CLICKHOUSE_URL="http://localhost:12003"
-cargo test
+# Load environment variables from .env.dev
+source ../.env.dev
+# OR use dotenv-cli
+dotenv -f ../.env.dev cargo test
 ```
+
+**IMPORTANT**: Always source `../.env.dev` for database URLs and configuration. Do not hardcode connection strings.
 
 ### Test Environment with docker-compose.test.yml
 

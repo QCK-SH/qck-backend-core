@@ -1,0 +1,70 @@
+{
+  "system_routes": [
+    "api", "app", "www", "admin", "login", "signup", "register",
+    "logout", "dashboard", "settings", "profile", "help", "support",
+    "about", "contact", "privacy", "terms", "legal", "docs",
+    "documentation", "blog", "news", "home", "index", "main",
+    "root", "public", "static", "assets", "images", "img", "css",
+    "js", "javascript", "fonts", "favicon", "robots", "sitemap",
+    "health", "healthcheck", "status", "metrics", "ping", "test",
+    "debug", "dev", "development", "staging", "prod", "production"
+  ],
+  "api_endpoints": [
+    "v1", "v2", "v3", "graphql", "rest", "websocket", "ws",
+    "oauth", "auth", "callback", "redirect", "webhook", "webhooks",
+    "notifications", "notify", "subscribe", "unsubscribe", "email",
+    "sms", "push", "rss", "feed", "atom", "json", "xml"
+  ],
+  "user_management": [
+    "user", "users", "account", "accounts", "member", "members",
+    "guest", "guests", "moderator", "moderators", "admin", "admins",
+    "superuser", "superadmin", "root", "system", "bot", "bots"
+  ],
+  "url_shortener_specific": [
+    "link", "links", "url", "urls", "short", "shorten", "tiny",
+    "redirect", "forward", "click", "clicks", "analytics", "stats",
+    "statistics", "data", "info", "information", "qr", "qrcode",
+    "share", "sharing", "social", "embed", "preview", "meta"
+  ],
+  "common_extensions": [
+    "html", "htm", "php", "asp", "aspx", "jsp", "cgi", "pl",
+    "py", "rb", "go", "rs", "java", "cpp", "c", "h", "swift",
+    "kt", "scala", "clj", "ex", "exs", "erl", "hrl"
+  ],
+  "security_sensitive": [
+    "config", "configuration", "env", "environment", "secret",
+    "secrets", "key", "keys", "token", "tokens", "password",
+    "passwords", "credential", "credentials", "cert", "certificate",
+    "ssl", "tls", "ssh", "pgp", "gpg", "rsa", "aes", "hash"
+  ],
+  "business_terms": [
+    "enterprise", "business", "premium", "pro", "free", "trial",
+    "demo", "sandbox", "test", "testing", "qa", "uat", "payment",
+    "payments", "billing", "invoice", "subscription", "subscribe",
+    "upgrade", "downgrade", "cancel", "refund", "pricing", "plans"
+  ],
+  "brand_protection": [
+    "qck", "qcksh", "quickshort", "quicklink", "shortqck"
+  ],
+  "http_methods": [
+    "get", "post", "put", "patch", "delete", "head", "options",
+    "connect", "trace"
+  ],
+  "special_pages": [
+    "404", "403", "401", "500", "503", "error", "errors",
+    "notfound", "forbidden", "unauthorized", "maintenance"
+  ],
+  "case_sensitive": false,
+  "check_variations": true,
+  "variation_patterns": [
+    "{word}s",
+    "{word}ed",
+    "{word}ing",
+    "{word}-api",
+    "{word}_api",
+    "new-{word}",
+    "old-{word}",
+    "my-{word}",
+    "your-{word}"
+  ]
+}

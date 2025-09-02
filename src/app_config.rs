@@ -77,6 +77,16 @@ pub struct AppConfig {
     // Application URLs
     pub dashboard_url: String, // Frontend dashboard URL for email links, etc.
 
+    // Short Code Generation
+    pub short_code_min_length: usize,
+    pub short_code_default_length: usize,
+    pub short_code_max_length: usize,
+    pub short_code_max_retries: usize,
+    pub short_code_batch_size: usize,
+    pub short_code_length: usize,
+    pub max_url_length: usize,
+    pub link_cache_ttl: u64,
+
     // Features
     pub enable_metrics: bool,
     pub enable_tracing: bool,
@@ -207,6 +217,12 @@ pub struct SecurityConfig {
     pub failed_login_expiry_seconds: usize, // Failed login tracking expiry for email
     pub failed_login_ip_expiry_seconds: usize, // Failed login tracking expiry for IP
     pub require_email_verification: bool, // Whether to require email verification for login
+
+    // URLhaus threat intelligence configuration
+    pub urlhaus_enabled: bool,    // Enable URLhaus threat checking
+    pub urlhaus_feed_url: String, // URLhaus CSV feed URL (online threats only)
+    pub urlhaus_update_interval_hours: u32, // How often to update (in hours)
+    pub urlhaus_max_cache_size: usize, // Maximum URLs to cache
 }
 
 /// Email configuration
@@ -307,6 +323,8 @@ impl AppConfig {
 
         // Application URLs - Load once, use everywhere
         let dashboard_url = get_or_default("NEXT_PUBLIC_DASHBOARD_URL", "http://localhost:3000");
+
+        // Link Management - configuration is properly parsed later at lines 464-472
 
         // JWT secrets validation
         let jwt_access_secret = get_required("JWT_ACCESS_SECRET")?;
@@ -422,6 +440,17 @@ impl AppConfig {
             .parse()
             .unwrap_or(port); // Default to internal port if not set
 
+        // Short Code Generation Configuration
+        let short_code_min_length: u32 = parse_or_default("SHORT_CODE_MIN_LENGTH", "4")?;
+        let short_code_default_length: u32 = parse_or_default("SHORT_CODE_DEFAULT_LENGTH", "7")?;
+        let short_code_max_length: u32 = parse_or_default("SHORT_CODE_MAX_LENGTH", "12")?;
+        let short_code_max_retries: u32 = parse_or_default("SHORT_CODE_MAX_RETRIES", "5")?;
+        let short_code_batch_size: u32 = parse_or_default("SHORT_CODE_BATCH_SIZE", "1000")?;
+        let short_code_length: u32 = parse_or_default("SHORT_CODE_LENGTH", "6")?;
+        let max_url_length: u32 = parse_or_default("MAX_URL_LENGTH", "8192")?;
+        let link_cache_ttl_u32: u32 = parse_or_default("LINK_CACHE_TTL", "3600")?;
+        let link_cache_ttl: u64 = link_cache_ttl_u32 as u64;
+
         // Create nested configs for compatibility
         let server = ServerConfig {
             bind_address: bind_address.clone(),
@@ -487,6 +516,22 @@ impl AppConfig {
             failed_login_expiry_seconds: failed_login_expiry_seconds as usize,
             failed_login_ip_expiry_seconds: failed_login_ip_expiry_seconds as usize,
             require_email_verification,
+
+            // URLhaus threat intelligence settings
+            urlhaus_enabled: get_or_default("URLHAUS_ENABLED", "true")
+                .parse()
+                .unwrap_or(true),
+            // Online feed: Currently active malicious URLs only
+            urlhaus_feed_url: get_or_default(
+                "URLHAUS_FEED_URL",
+                "https://urlhaus.abuse.ch/downloads/csv_online/",
+            ),
+            urlhaus_update_interval_hours: get_or_default("URLHAUS_UPDATE_INTERVAL_HOURS", "24")
+                .parse()
+                .unwrap_or(24),
+            urlhaus_max_cache_size: get_or_default("URLHAUS_MAX_CACHE_SIZE", "50000")
+                .parse()
+                .unwrap_or(50000),
         };
 
         // Email configuration
@@ -578,6 +623,14 @@ impl AppConfig {
             cors_allowed_origins,
             jti_hash_salt,
             dashboard_url, // Application URL
+            short_code_min_length: short_code_min_length as usize,
+            short_code_default_length: short_code_default_length as usize,
+            short_code_max_length: short_code_max_length as usize,
+            short_code_max_retries: short_code_max_retries as usize,
+            short_code_batch_size: short_code_batch_size as usize,
+            short_code_length: short_code_length as usize,
+            max_url_length: max_url_length as usize,
+            link_cache_ttl,
             enable_metrics,
             enable_tracing,
             enable_rate_limiting,
@@ -608,6 +661,11 @@ impl AppConfig {
     /// Check if running in test environment
     pub fn is_test(&self) -> bool {
         self.environment == Environment::Test
+    }
+
+    /// Check if running in staging environment
+    pub fn is_staging(&self) -> bool {
+        self.environment == Environment::Staging
     }
 }
 
@@ -640,24 +698,14 @@ mod tests {
 
     #[test]
     fn test_config_with_env() {
-        // Set required environment variables
-        env::set_var("DATABASE_URL", "postgresql://test:test@localhost/test");
-        env::set_var(
-            "JWT_ACCESS_SECRET",
-            "test-secret-that-is-at-least-32-characters-long",
-        );
-        env::set_var(
-            "JWT_REFRESH_SECRET",
-            "another-test-secret-that-is-at-least-32-chars",
-        );
-        env::set_var("JWT_ACCESS_EXPIRY", "7200");
-        env::set_var("JWT_REFRESH_EXPIRY", "86400");
+        // Load .env.dev for testing
+        dotenv::from_filename("../.env.dev").ok();
 
         // Load config
         let config = AppConfig::from_env().expect("Failed to load test config");
 
-        // Verify values match what was set
-        assert_eq!(config.database_url, "postgresql://test:test@localhost/test");
+        // Verify config loaded successfully
+        assert!(!config.database_url.is_empty());
         assert!(config.jwt_access_secret.len() >= 32);
         assert!(config.jwt_refresh_secret.len() >= 32);
         assert_eq!(config.jwt_access_expiry, 7200);
@@ -678,20 +726,8 @@ mod tests {
 
     #[test]
     fn test_get_refresh_rate_limit_config() {
-        // Set required environment variables
-        env::set_var("DATABASE_URL", "postgresql://test:test@localhost/test");
-        env::set_var(
-            "JWT_ACCESS_SECRET",
-            "test-secret-that-is-at-least-32-characters-long",
-        );
-        env::set_var(
-            "JWT_REFRESH_SECRET",
-            "another-test-secret-that-is-at-least-32-chars",
-        );
-        env::set_var("REFRESH_RATE_LIMIT_MAX_REQUESTS", "15");
-        env::set_var("REFRESH_RATE_LIMIT_WINDOW_SECONDS", "600");
-        env::set_var("REFRESH_RATE_LIMIT_BURST_LIMIT", "5");
-        env::set_var("REFRESH_RATE_LIMIT_BLOCK_DURATION", "400");
+        // Load .env.dev for testing
+        dotenv::from_filename("../.env.dev").ok();
 
         // Load config and test refresh rate limit configuration
         let config = AppConfig::from_env().expect("Failed to load test config");

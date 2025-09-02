@@ -41,6 +41,10 @@ else
     echo "[QCK-BACKEND] Skipping migrations (RUN_MIGRATIONS != true)"
 fi
 
+# Seeds are now handled as Diesel migrations
+# The demo users seed is in migrations/diesel/2025-09-01-072853_seed_demo_users/
+# It will automatically run with other migrations
+
 # Start the service with hot reload
 echo "[QCK-BACKEND] Starting service with hot reload..."
 exec cargo-watch --why -x run

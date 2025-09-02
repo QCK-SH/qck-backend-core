@@ -37,8 +37,10 @@ CREATE TABLE link_events
     referrer        String,                            -- Full referrer URL
     
     -- Geographic data (populated by GeoIP lookup)
+    country         LowCardinality(String),            -- Country name
     country_code    LowCardinality(FixedString(2)),    -- ISO country code
     city            LowCardinality(String),            -- City name
+    region          LowCardinality(String),            -- Region/State name
     
     -- Device and browser parsing (from user_agent)
     device_type     Enum8(                             -- Device category
@@ -105,12 +107,12 @@ ENGINE = Buffer(
     qck_analytics,           -- database
     link_events,             -- destination table
     16,                      -- num_layers (parallel buffers)
-    2,                       -- min_time (flush after 2 seconds)
-    10,                      -- max_time (force flush after 10 seconds)
-    200000,                  -- min_rows (flush at 200k rows)
-    2000000,                 -- max_rows (force flush at 2M rows)
-    20000000,                -- min_bytes (20MB)
-    200000000                -- max_bytes (200MB)
+    10,                      -- min_time (flush after 10 seconds)
+    30,                      -- max_time (force flush after 30 seconds)
+    100,                     -- min_rows (flush at 100 rows for dev/testing)
+    10000,                   -- max_rows (force flush at 10k rows)
+    10000,                   -- min_bytes (10KB)
+    10000000                 -- max_bytes (10MB)
 );
 
 -- Buffer 2: Dedicated buffer for bot/crawler traffic (isolated)
@@ -119,12 +121,12 @@ ENGINE = Buffer(
     qck_analytics,           -- database
     link_events,             -- destination table
     16,                      -- num_layers (parallel buffers)
-    5,                       -- min_time (flush after 5 seconds - bots can wait)
-    15,                      -- max_time (force flush after 15 seconds)
-    100000,                  -- min_rows (flush at 100k rows)
-    1000000,                 -- max_rows (force flush at 1M rows)
-    10000000,                -- min_bytes (10MB)
-    100000000                -- max_bytes (100MB)
+    15,                      -- min_time (flush after 15 seconds - bots can wait)
+    45,                      -- max_time (force flush after 45 seconds)
+    50,                      -- min_rows (flush at 50 rows for dev/testing)
+    5000,                    -- max_rows (force flush at 5k rows)
+    10000,                   -- min_bytes (10KB)
+    10000000                 -- max_bytes (10MB)
 );
 
 -- Buffer 3: Secondary user buffer + overflow for viral bursts (50% of users)
@@ -133,12 +135,12 @@ ENGINE = Buffer(
     qck_analytics,           -- database
     link_events,             -- destination table
     16,                      -- num_layers (parallel buffers)
-    2,                       -- min_time (flush after 2 seconds)
-    10,                      -- max_time (force flush after 10 seconds)
-    200000,                  -- min_rows (flush at 200k rows)
-    2000000,                 -- max_rows (force flush at 2M rows)
-    20000000,                -- min_bytes (20MB)
-    200000000                -- max_bytes (200MB)
+    10,                      -- min_time (flush after 10 seconds)
+    30,                      -- max_time (force flush after 30 seconds)
+    100,                     -- min_rows (flush at 100 rows for dev/testing)
+    10000,                   -- max_rows (force flush at 10k rows)
+    10000,                   -- min_bytes (10KB)
+    10000000                 -- max_bytes (10MB)
 );
 
 -- ============================================================================

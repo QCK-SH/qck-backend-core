@@ -1,6 +1,7 @@
 // API Documentation handlers - modular structure
 pub mod auth;
 pub mod health;
+pub mod links;
 pub mod onboarding;
 pub mod schemas;
 pub mod swagger_ui;
@@ -10,7 +11,7 @@ use axum::{
     http::{header, StatusCode},
     response::{IntoResponse, Response},
 };
-use serde_json;
+use serde_json::{self, json};
 
 /// Serve OpenAPI JSON specification at /v1/docs/openapi.json
 pub async fn serve_openapi_spec() -> Response {
@@ -69,6 +70,10 @@ fn build_openapi_spec() -> serde_json::Value {
                 "description": "User authentication and registration"
             },
             {
+                "name": "Links",
+                "description": "URL shortening and link management operations"
+            },
+            {
                 "name": "Onboarding",
                 "description": "User onboarding flow and plan selection"
             },
@@ -86,12 +91,51 @@ fn build_openapi_spec() -> serde_json::Value {
             "/v1/auth/verification-status": auth::verification_status_endpoint(),
             "/v1/auth/forgot-password": auth::forgot_password_endpoint(),
             "/v1/auth/reset-password": auth::reset_password_endpoint(),
+            "/v1/links": json!({
+                "post": links::create_link_endpoint()["post"],
+                "get": links::list_links_endpoint()["get"]
+            }),
+            "/v1/links/bulk": json!({
+                "post": links::bulk_create_links_endpoint()["post"]
+            }),
+            "/v1/links/{id}": json!({
+                "get": links::get_link_endpoint()["get"],
+                "put": links::update_link_endpoint()["put"],
+                "delete": links::delete_link_endpoint()["delete"]
+            }),
+            "/v1/links/{id}/stats": json!({
+                "get": links::get_link_stats_endpoint()["get"]
+            }),
             "/v1/onboarding/select-plan": onboarding::select_plan_endpoint(),
             "/v1/onboarding/status": onboarding::onboarding_status_endpoint(),
             "/v1/health": health::health_endpoint(),
         },
         "components": {
-            "schemas": schemas::all_schemas()
+            "schemas": merge_schemas(),
+            "securitySchemes": {
+                "bearerAuth": {
+                    "type": "http",
+                    "scheme": "bearer",
+                    "bearerFormat": "JWT",
+                    "description": "JWT access token obtained from login or refresh endpoints"
+                }
+            }
         }
     })
+}
+
+/// Merge all schemas into a single JSON object
+fn merge_schemas() -> serde_json::Value {
+    let mut all_schemas = schemas::all_schemas();
+
+    // Merge link-specific schemas
+    if let serde_json::Value::Object(ref mut map) = all_schemas {
+        if let serde_json::Value::Object(link_schemas_map) = links::link_schemas() {
+            for (key, value) in link_schemas_map {
+                map.insert(key, value);
+            }
+        }
+    }
+
+    all_schemas
 }

@@ -198,9 +198,11 @@ impl RefreshToken {
     /// Create SHA-256 hash of JTI with injectable salt for testing and flexibility
     pub fn hash_jti_with_salt(jti: &str, salt: Option<&[u8]>) -> String {
         let mut hasher = Sha256::new();
-        let default_salt = Self::get_jti_hash_salt();
-        let salt = salt.unwrap_or(&default_salt);
-        hasher.update(salt);
+        let salt = match salt {
+            Some(s) => s.to_vec(),
+            None => Self::get_jti_hash_salt(),
+        };
+        hasher.update(&salt);
         hasher.update(jti.as_bytes());
         format!("{:x}", hasher.finalize())
     }
@@ -611,17 +613,19 @@ mod tests {
 
     #[test]
     fn test_jti_hashing() {
+        // Use hash_jti_with_salt directly to avoid CONFIG dependency
+        let test_salt = b"test-salt-for-unit-tests";
         let jti1 = "test-jti-123";
         let jti2 = "test-jti-456";
 
-        let hash1 = RefreshToken::hash_jti(jti1);
-        let hash2 = RefreshToken::hash_jti(jti2);
+        let hash1 = RefreshToken::hash_jti_with_salt(jti1, Some(test_salt));
+        let hash2 = RefreshToken::hash_jti_with_salt(jti2, Some(test_salt));
 
         // Hashes should be different
         assert_ne!(hash1, hash2);
 
         // Same input should produce same hash
-        let hash1_again = RefreshToken::hash_jti(jti1);
+        let hash1_again = RefreshToken::hash_jti_with_salt(jti1, Some(test_salt));
         assert_eq!(hash1, hash1_again);
 
         // Hash should be hex string
@@ -633,12 +637,13 @@ mod tests {
     fn test_jti_hashing_with_injectable_salt() {
         let jti = "test-jti-123";
         let custom_salt = b"custom-test-salt-for-testing";
+        let default_salt = b"default-test-salt";
 
         // Hash with custom salt
         let hash_with_custom = RefreshToken::hash_jti_with_salt(jti, Some(custom_salt));
 
-        // Hash with default salt
-        let hash_with_default = RefreshToken::hash_jti(jti);
+        // Hash with different salt
+        let hash_with_default = RefreshToken::hash_jti_with_salt(jti, Some(default_salt));
 
         // Hashes should be different with different salts
         assert_ne!(hash_with_custom, hash_with_default);

@@ -6,19 +6,38 @@ diesel::table! {
 
     links (id) {
         id -> Uuid,
-        #[max_length = 50]
+        user_id -> Uuid,
+        #[max_length = 20]
         short_code -> Varchar,
         original_url -> Text,
-        user_id -> Uuid,
-        expires_at -> Nullable<Timestamptz>,
-        click_count -> Int4,
+        #[max_length = 500]
+        title -> Nullable<Varchar>,
+        description -> Nullable<Text>,
+        tags -> Nullable<Array<Nullable<Text>>>,
+        #[max_length = 100]
+        custom_alias -> Nullable<Varchar>,
         is_active -> Bool,
+        expires_at -> Nullable<Timestamptz>,
+        password_hash -> Nullable<Text>,
+        last_accessed_at -> Nullable<Timestamptz>,
+        og_image -> Nullable<Text>,
+        favicon_url -> Nullable<Text>,
+        #[max_length = 20]
+        processing_status -> Varchar,
+        metadata_extracted_at -> Nullable<Timestamptz>,
+        #[max_length = 255]
+        utm_source -> Nullable<Varchar>,
+        #[max_length = 255]
+        utm_medium -> Nullable<Varchar>,
+        #[max_length = 255]
+        utm_campaign -> Nullable<Varchar>,
+        #[max_length = 255]
+        utm_term -> Nullable<Varchar>,
+        #[max_length = 255]
+        utm_content -> Nullable<Varchar>,
+        deleted_at -> Nullable<Timestamptz>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
-        #[max_length = 50]
-        custom_alias -> Nullable<Varchar>,
-        last_accessed_at -> Timestamptz,
-        metadata -> Jsonb,
     }
 }
 
