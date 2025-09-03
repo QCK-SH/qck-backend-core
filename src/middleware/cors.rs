@@ -15,7 +15,7 @@ pub async fn dynamic_cors_middleware(
     next: Next,
 ) -> Result<Response<Body>, StatusCode> {
     let config = crate::app_config::config();
-    
+
     // Get the origin from the request
     let origin = req
         .headers()
@@ -24,10 +24,7 @@ pub async fn dynamic_cors_middleware(
         .map(String::from);
 
     // Check if wildcard is configured
-    let has_wildcard = config
-        .cors_allowed_origins
-        .iter()
-        .any(|o| o == "*");
+    let has_wildcard = config.cors_allowed_origins.iter().any(|o| o == "*");
 
     // For staging/dev with wildcard: reflect the origin (allows any origin with credentials)
     // For production or specific origins: check against whitelist
@@ -51,7 +48,7 @@ pub async fn dynamic_cors_middleware(
     // Handle preflight OPTIONS requests
     if req.method() == Method::OPTIONS {
         let mut response = Response::new(Body::empty());
-        
+
         if let Some(allowed) = allowed_origin {
             response.headers_mut().insert(
                 header::ACCESS_CONTROL_ALLOW_ORIGIN,
@@ -67,14 +64,16 @@ pub async fn dynamic_cors_middleware(
             );
             response.headers_mut().insert(
                 header::ACCESS_CONTROL_ALLOW_HEADERS,
-                HeaderValue::from_static("content-type, authorization, accept, origin, x-requested-with"),
+                HeaderValue::from_static(
+                    "content-type, authorization, accept, origin, x-requested-with",
+                ),
             );
             response.headers_mut().insert(
                 header::ACCESS_CONTROL_MAX_AGE,
                 HeaderValue::from_static("3600"),
             );
         }
-        
+
         *response.status_mut() = StatusCode::OK;
         return Ok(response);
     }

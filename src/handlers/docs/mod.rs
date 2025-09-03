@@ -6,16 +6,19 @@ pub mod onboarding;
 pub mod schemas;
 pub mod swagger_ui;
 
+use crate::app::AppState;
+use crate::app_config::AppConfig;
 use axum::{
-    extract::OriginalUri,
+    extract::{OriginalUri, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
 };
 use serde_json::{self, json};
+use std::sync::Arc;
 
 /// Serve OpenAPI JSON specification at /v1/docs/openapi.json
-pub async fn serve_openapi_spec() -> Response {
-    let spec = build_openapi_spec();
+pub async fn serve_openapi_spec(State(app_state): State<AppState>) -> Response {
+    let spec = build_openapi_spec(app_state.config.as_ref());
 
     (
         StatusCode::OK,
@@ -38,7 +41,37 @@ pub async fn redirect_to_docs(original_uri: OriginalUri) -> impl IntoResponse {
 pub use swagger_ui::serve_swagger_ui;
 
 /// Build the complete OpenAPI specification
-fn build_openapi_spec() -> serde_json::Value {
+fn build_openapi_spec(config: &AppConfig) -> serde_json::Value {
+    // Determine the API base URL from environment
+    let api_url = std::env::var("NEXT_PUBLIC_API_URL").unwrap_or_else(|_| {
+        // Fallback based on environment
+        match config.environment {
+            crate::app_config::Environment::Production => "https://qck.sh/api".to_string(),
+            crate::app_config::Environment::Staging => "https://s.qck.sh/api".to_string(),
+            _ => format!("http://localhost:{}/api", config.server.api_port),
+        }
+    });
+
+    // Build server list based on environment
+    let mut servers = vec![json!({
+        "url": api_url,
+        "description": format!("Current server ({})", config.environment)
+    })];
+
+    // Add additional servers for reference in non-production environments
+    if !config.is_production() {
+        servers.extend(vec![
+            json!({
+                "url": "https://s.qck.sh/api",
+                "description": "Staging server"
+            }),
+            json!({
+                "url": "https://qck.sh/api",
+                "description": "Production server"
+            }),
+        ]);
+    }
+
     serde_json::json!({
         "openapi": "3.0.3",
         "info": {
@@ -50,20 +83,7 @@ fn build_openapi_spec() -> serde_json::Value {
                 "email": "dev@qck.sh"
             }
         },
-        "servers": [
-            {
-                "url": "http://localhost:10110",
-                "description": "Development server (local)"
-            },
-            {
-                "url": "https://s_api.qck.sh",
-                "description": "Staging server"
-            },
-            {
-                "url": "https://api.qck.sh",
-                "description": "Production server"
-            }
-        ],
+        "servers": servers,
         "tags": [
             {
                 "name": "Authentication",

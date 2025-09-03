@@ -2,6 +2,7 @@
 use std::sync::Arc;
 
 use crate::{
+    app_config::AppConfig,
     config::RateLimitingConfig,
     db::DieselPool,
     services::{
@@ -13,6 +14,7 @@ use crate::{
 // Application state shared across handlers
 #[derive(Clone)]
 pub struct AppState {
+    pub config: Arc<AppConfig>,
     pub diesel_pool: DieselPool,
     pub redis_pool: RedisPool,
     pub jwt_service: Arc<JwtService>,

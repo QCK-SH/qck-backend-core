@@ -109,8 +109,13 @@ const SWAGGER_UI_HTML: &str = r#"<!DOCTYPE html>
         }
         
         window.onload = function() {
+            // Detect if we're running behind /api prefix
+            const currentPath = window.location.pathname;
+            const needsApiPrefix = currentPath.includes('/api/');
+            const specUrl = needsApiPrefix ? '/api/v1/docs/openapi.json' : '/v1/docs/openapi.json';
+            
             const ui = SwaggerUIBundle({
-                url: "/v1/docs/openapi.json",
+                url: specUrl,
                 dom_id: '#swagger-ui',
                 deepLinking: true,
                 presets: [

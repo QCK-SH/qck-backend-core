@@ -199,6 +199,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create shared application state
     let app_state = AppState {
+        config: Arc::new(config.clone()),
         diesel_pool: diesel_pool.clone(),
         redis_pool: redis_pool.clone(),
         jwt_service,
@@ -228,7 +229,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else if has_wildcard && config.is_production() {
         error!("CORS: Wildcard '*' detected in production - will be ignored for security!");
     } else {
-        info!("CORS: Using whitelist mode with origins: {:?}", config.cors_allowed_origins);
+        info!(
+            "CORS: Using whitelist mode with origins: {:?}",
+            config.cors_allowed_origins
+        );
     }
 
     // Build the application router - conditionally include Swagger UI
