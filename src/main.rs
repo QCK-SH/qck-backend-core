@@ -16,7 +16,7 @@ pub use app_config::CONFIG;
 
 use axum::{
     extract::{Extension, State},
-    http::{Method, StatusCode},
+    http::StatusCode,
     middleware as axum_middleware,
     response::{IntoResponse, Json},
     routing::get,
@@ -25,7 +25,7 @@ use axum::{
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower::ServiceBuilder;
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tower_http::trace::TraceLayer;
 use tracing::{error, info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -223,65 +223,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .iter()
         .any(|origin| origin == "*");
 
-    let cors = if has_wildcard && !config.is_production() {
-        // Dev/Test/Staging with wildcard - use permissive CORS
-        info!("CORS: Using permissive mode (wildcard) for non-production");
-        CorsLayer::permissive()
+    if has_wildcard && !config.is_production() {
+        info!("CORS: Using dynamic origin reflection for staging/dev (wildcard with credentials support)");
+    } else if has_wildcard && config.is_production() {
+        error!("CORS: Wildcard '*' detected in production - will be ignored for security!");
     } else {
-        // Production OR no wildcard - use specific origins
-        if has_wildcard && config.is_production() {
-            error!("CORS: Wildcard '*' detected in production - filtering out for security!");
-        }
-
-        // Parse all origins, filtering out wildcards in production
-        let valid_origins: Vec<axum::http::HeaderValue> = config
-            .cors_allowed_origins
-            .iter()
-            .filter(|origin| !config.is_production() || *origin != "*") // Filter wildcard only in production
-            .filter_map(|origin| {
-                match origin.parse::<axum::http::HeaderValue>() {
-                    Ok(parsed) => {
-                        info!("  ✓ Valid CORS origin: {}", origin);
-                        Some(parsed)
-                    },
-                    Err(e) => {
-                        error!("  ✗ Invalid CORS origin '{}': {} - skipping", origin, e);
-                        None
-                    }
-                }
-            })
-            .collect();
-
-        if valid_origins.is_empty() {
-            error!("No valid CORS origins configured! Add valid origins to CORS_ALLOWED_ORIGINS");
-            return Err("No valid CORS origins configured".into());
-        }
-
-        // Build CORS layer with validated origins
-        // Note: Cannot use wildcard headers with credentials
-        CorsLayer::new()
-            .allow_origin(valid_origins)
-            .allow_methods([
-                Method::GET,
-                Method::POST,
-                Method::PUT,
-                Method::DELETE,
-                Method::OPTIONS,
-            ])
-            .allow_headers([
-                axum::http::header::CONTENT_TYPE,
-                axum::http::header::AUTHORIZATION,
-                axum::http::header::ACCEPT,
-                axum::http::header::ORIGIN,
-                axum::http::header::ACCESS_CONTROL_REQUEST_METHOD,
-                axum::http::header::ACCESS_CONTROL_REQUEST_HEADERS,
-            ])
-            .allow_credentials(true)
-            .expose_headers([
-                axum::http::header::CONTENT_TYPE,
-                axum::http::header::AUTHORIZATION,
-            ])
-    };
+        info!("CORS: Using whitelist mode with origins: {:?}", config.cors_allowed_origins);
+    }
 
     // Build the application router - conditionally include Swagger UI
     let mut app = Router::new()
@@ -327,7 +275,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
-                .layer(cors)
+                .layer(axum_middleware::from_fn(crate::middleware::dynamic_cors_middleware))
                 .layer(Extension(app_state.clone()))
         )
         .with_state(app_state.clone());

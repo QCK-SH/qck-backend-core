@@ -3,10 +3,12 @@
 
 pub mod auth;
 pub mod auth_middleware;
+pub mod cors;
 
 // Re-export auth types and middleware
 pub use auth::AuthenticatedUser;
 pub use auth_middleware::auth_middleware;
+pub use cors::dynamic_cors_middleware;
 
 // TODO: Implement the following middleware modules for Actix-web:
 // - AuthMiddleware: JWT validation middleware
