@@ -1,14 +1,14 @@
 [package]
-name = "qck-backend"
+name = "qck-backend-core"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "qck_backend"
+name = "qck_backend_core"
 path = "src/lib.rs"
 
 [[bin]]
-name = "qck-backend"
+name = "qck-backend-core"
 path = "src/main.rs"
 
 [dependencies]
