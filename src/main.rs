@@ -38,7 +38,7 @@ use crate::{
     },
     handlers::{
         auth as auth_handlers, auth_routes, docs as docs_handlers, links as link_handlers,
-        onboarding_routes, redirect as redirect_handlers,
+        redirect as redirect_handlers,
     },
     middleware::auth_middleware,
     services::{
@@ -257,15 +257,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = app
         // Authentication routes
         .nest("/v1/auth", auth_routes())
-        // Onboarding routes (protected with auth middleware)
-        .nest(
-            "/v1/onboarding",
-            onboarding_routes()
-                .route_layer(axum_middleware::from_fn_with_state(
-                    app_state.clone(),
-                    auth_middleware,
-                ))
-        )
         // API routes (protected with auth middleware)
         .nest("/v1", api_routes()
             .route_layer(axum_middleware::from_fn_with_state(

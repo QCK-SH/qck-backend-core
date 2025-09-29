@@ -93,6 +93,7 @@ pub struct AppConfig {
     pub enable_rate_limiting: bool,
     pub enable_swagger_ui: bool,
     pub disable_embedded_migrations: bool,
+    pub is_oss_deployment: bool,  // true for OSS, false for cloud
 
     // Nested configs for compatibility
     pub server: ServerConfig,
@@ -430,6 +431,7 @@ impl AppConfig {
         let enable_swagger_ui = parse_bool_or_default("ENABLE_SWAGGER_UI", "false");
         let disable_embedded_migrations =
             parse_bool_or_default("DISABLE_EMBEDDED_MIGRATIONS", "false");
+        let is_oss_deployment = parse_bool_or_default("IS_OSS_DEPLOYMENT", "true");  // Default to true for OSS
 
         let rust_log = get_or_default("RUST_LOG", "info");
         let rust_backtrace = get_or_default("RUST_BACKTRACE", "0") != "0";
@@ -636,6 +638,7 @@ impl AppConfig {
             enable_rate_limiting,
             enable_swagger_ui,
             disable_embedded_migrations,
+            is_oss_deployment,
             // Nested configs
             server,
             database,

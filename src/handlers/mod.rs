@@ -7,7 +7,6 @@
 pub mod auth;
 pub mod docs; // Modular documentation structure
 pub mod links;
-pub mod onboarding;
 pub mod redirect;
 
 use crate::app::AppState;
@@ -34,9 +33,3 @@ pub fn auth_routes() -> Router<AppState> {
         .route("/reset-password", post(auth::reset_password))
 }
 
-// Onboarding routes
-pub fn onboarding_routes() -> Router<AppState> {
-    Router::new()
-        .route("/select-plan", post(onboarding::select_plan))
-        .route("/status", get(onboarding::get_status))
-}

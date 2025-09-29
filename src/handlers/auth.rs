@@ -713,14 +713,23 @@ pub async fn register(
     let company_name = trim_optional_field(register_req.company_name.as_ref());
 
     // Step 6: Create new user in database
+    let config = crate::app_config::config();
     let new_user = NewUser {
         email: register_req.email.to_lowercase(),
         password_hash,
-        email_verified: false,                    // Require email verification
-        subscription_tier: "pending".to_string(), // User selects tier after email verification
+        email_verified: if config.is_oss_deployment { true } else { false },  // OSS: auto-verify
+        subscription_tier: if config.is_oss_deployment {
+            "unlimited".to_string()  // OSS: all features available
+        } else {
+            "pending".to_string()    // Cloud: needs plan selection
+        },
         full_name,
         company_name,
-        onboarding_status: OnboardingStatus::Registered.as_str().to_string(), // Initial status: just registered
+        onboarding_status: if config.is_oss_deployment {
+            OnboardingStatus::Completed.as_str().to_string()  // OSS: skip onboarding
+        } else {
+            OnboardingStatus::Registered.as_str().to_string() // Cloud: normal flow
+        },
     };
 
     let created_user = match User::create(&mut conn, new_user).await {
@@ -736,10 +745,11 @@ pub async fn register(
         },
     };
 
-    // Step 7: Send email verification (DEV-103)
-    let verification_sent = if crate::app_config::config()
-        .security
-        .require_email_verification
+    // Step 7: Send email verification (DEV-103) - Skip for OSS
+    let verification_sent = if !config.is_oss_deployment
+        && crate::app_config::config()
+            .security
+            .require_email_verification
     {
         use crate::services::{EmailService, VerificationService};
 
