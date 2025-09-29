@@ -422,9 +422,6 @@ impl AppConfig {
         let failed_login_expiry_seconds = parse_or_default("FAILED_LOGIN_EXPIRY_SECONDS", "3600")?;
         let failed_login_ip_expiry_seconds =
             parse_or_default("FAILED_LOGIN_IP_EXPIRY_SECONDS", "300")?;
-        let require_email_verification =
-            parse_bool_or_default("REQUIRE_EMAIL_VERIFICATION", "false"); // Default to false for now
-
         let enable_metrics = parse_bool_or_default("ENABLE_METRICS", "true");
         let enable_tracing = parse_bool_or_default("ENABLE_TRACING", "true");
         let enable_rate_limiting = parse_bool_or_default("ENABLE_RATE_LIMITING", "true");
@@ -432,6 +429,13 @@ impl AppConfig {
         let disable_embedded_migrations =
             parse_bool_or_default("DISABLE_EMBEDDED_MIGRATIONS", "false");
         let is_oss_deployment = parse_bool_or_default("IS_OSS_DEPLOYMENT", "true");  // Default to true for OSS
+
+        // OSS deployments never require email verification
+        let require_email_verification = if is_oss_deployment {
+            false  // OSS: always false
+        } else {
+            parse_bool_or_default("REQUIRE_EMAIL_VERIFICATION", "true")  // Cloud: default to true
+        };
 
         let rust_log = get_or_default("RUST_LOG", "info");
         let rust_backtrace = get_or_default("RUST_BACKTRACE", "0") != "0";
