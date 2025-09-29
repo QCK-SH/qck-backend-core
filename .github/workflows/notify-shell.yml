@@ -2,16 +2,16 @@ name: Notify Shell Repository
 
 on:
   push:
-    branches: [ main, staging ]
+    branches: [ main ]
   pull_request:
     types: [closed]
-    branches: [ main, staging ]
+    branches: [ main ]
 
 jobs:
   notify-shell:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || (github.event.pull_request.merged == true)
-    
+
     steps:
       - name: Determine target branch
         id: branch
@@ -31,9 +31,9 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${{ secrets.PAT_TOKEN }}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/QCK-SH/QCK-PROD-SHELL/dispatches \
+            https://api.github.com/repos/QCK-SH/qck-core/dispatches \
             -d '{
-              "event_type": "update-qck-backend",
+              "event_type": "update-qck-backend-core",
               "client_payload": {
                 "submodule": "qck-backend",
                 "branch": "${{ steps.branch.outputs.branch }}",
@@ -44,6 +44,6 @@ jobs:
 
       - name: Log notification
         run: |
-          echo "✅ Notified shell repository about qck-backend update"
+          echo "✅ Notified qck-core repository about qck-backend-core update"
           echo "Branch: ${{ steps.branch.outputs.branch }}"
           echo "Commit: ${{ github.sha }}"
