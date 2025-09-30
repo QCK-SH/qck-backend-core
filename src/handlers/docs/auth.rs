@@ -613,3 +613,122 @@ pub fn reset_password_endpoint() -> serde_json::Value {
         }
     })
 }
+
+/// Logout endpoint documentation
+pub fn logout_endpoint() -> serde_json::Value {
+    json!({
+        "post": {
+            "tags": ["Authentication"],
+            "summary": "Logout user",
+            "description": "Logs out the current user by invalidating their tokens.",
+            "operationId": "logout",
+            "security": [
+                {
+                    "bearerAuth": []
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "Logout successful",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "success": {
+                                        "type": "boolean",
+                                        "example": true
+                                    },
+                                    "message": {
+                                        "type": "string",
+                                        "example": "Logged out successfully"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "401": {
+                    "description": "Unauthorized - Invalid or missing token"
+                }
+            }
+        }
+    })
+}
+
+/// Get current user endpoint documentation
+pub fn get_current_user_endpoint() -> serde_json::Value {
+    json!({
+        "get": {
+            "tags": ["Authentication"],
+            "summary": "Get current user",
+            "description": "Returns information about the currently authenticated user.",
+            "operationId": "getCurrentUser",
+            "security": [
+                {
+                    "bearerAuth": []
+                }
+            ],
+            "responses": {
+                "200": {
+                    "description": "User information retrieved successfully",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UserResponse"
+                            }
+                        }
+                    }
+                },
+                "401": {
+                    "description": "Unauthorized - Invalid or missing token"
+                }
+            }
+        }
+    })
+}
+
+/// Validate token endpoint documentation
+pub fn validate_token_endpoint() -> serde_json::Value {
+    json!({
+        "post": {
+            "tags": ["Authentication"],
+            "summary": "Validate JWT token",
+            "description": "Validates a JWT token and returns its status and claims.",
+            "operationId": "validateToken",
+            "requestBody": {
+                "required": true,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": ["token"],
+                            "properties": {
+                                "token": {
+                                    "type": "string",
+                                    "description": "JWT token to validate",
+                                    "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "responses": {
+                "200": {
+                    "description": "Token is valid",
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TokenValidationResponse"
+                            }
+                        }
+                    }
+                },
+                "401": {
+                    "description": "Unauthorized - Invalid or expired token"
+                }
+            }
+        }
+    })
+}

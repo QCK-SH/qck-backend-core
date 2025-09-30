@@ -15,17 +15,14 @@ use axum::{
     Router,
 };
 
-// Authentication routes
+// Authentication routes (public - no auth required)
 pub fn auth_routes() -> Router<AppState> {
     Router::new()
         .route("/register", post(auth::register))
         .route("/login", post(auth::login))
         .route("/refresh", post(auth::refresh_token))
         .route("/logout", post(auth::logout))
-        .route("/me", get(auth::get_current_user))
-        .route("/validate", post(auth::validate_token))
         // Password reset endpoints (DEV-106)
         .route("/forgot-password", post(auth::forgot_password))
         .route("/reset-password", post(auth::reset_password))
 }
-

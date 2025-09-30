@@ -118,7 +118,7 @@ pub async fn initialize_app_state() -> Result<AppState, Box<dyn std::error::Erro
 
 // Re-export route builders for links
 pub fn links_routes() -> axum::Router<AppState> {
-    use axum::routing::{delete, get, post, put};
+    use axum::routing::{get, post};
     use handlers::links;
 
     axum::Router::new()

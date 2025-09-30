@@ -1,6 +1,5 @@
 // OpenAPI schema definitions
 
-use super::onboarding;
 use serde_json::json;
 use utoipa::OpenApi;
 
@@ -72,14 +71,6 @@ pub fn all_schemas() -> serde_json::Value {
         }
     }
 
-    // Merge onboarding schemas
-    if let serde_json::Value::Object(ref mut map) = schemas {
-        if let serde_json::Value::Object(onboarding_map) = onboarding::onboarding_schemas() {
-            for (key, value) in onboarding_map {
-                map.insert(key, value);
-            }
-        }
-    }
 
     schemas
 }

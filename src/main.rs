@@ -255,9 +255,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Complete router setup
     let app = app
-        // Authentication routes
+        // Public authentication routes (no auth required)
         .nest("/v1/auth", auth_routes())
-        // API routes (protected with auth middleware)
+        // API routes (protected with auth middleware) - includes /auth/me and /auth/validate
         .nest("/v1", api_routes()
             .route_layer(axum_middleware::from_fn_with_state(
                 app_state.clone(),
@@ -299,12 +299,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-// API routes for link management
+// API routes for link management and protected auth endpoints
 fn api_routes() -> Router<AppState> {
     use axum::routing::{delete, get, post, put};
-    use handlers::links;
+    use handlers::{auth, links};
 
     Router::new()
+        // Protected auth routes (require valid JWT)
+        .route("/auth/me", get(auth::get_current_user))
+        .route("/auth/validate", post(auth::validate_token))
         // Link management routes (protected)
         .route("/links", post(links::create_link).get(links::list_links))
         .route("/links/bulk", post(links::bulk_create_links))

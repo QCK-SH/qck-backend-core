@@ -2,7 +2,7 @@
 pub mod auth;
 pub mod health;
 pub mod links;
-pub mod onboarding;
+pub mod redirect;
 pub mod schemas;
 pub mod swagger_ui;
 
@@ -14,7 +14,6 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde_json::{self, json};
-use std::sync::Arc;
 
 /// Serve OpenAPI JSON specification at /v1/docs/openapi.json
 pub async fn serve_openapi_spec(State(app_state): State<AppState>) -> Response {
@@ -87,15 +86,15 @@ fn build_openapi_spec(config: &AppConfig) -> serde_json::Value {
         "tags": [
             {
                 "name": "Authentication",
-                "description": "User authentication and registration"
+                "description": "User authentication and registration (OSS - Auto-verification enabled)"
             },
             {
                 "name": "Links",
                 "description": "URL shortening and link management operations"
             },
             {
-                "name": "Onboarding",
-                "description": "User onboarding flow and plan selection"
+                "name": "Redirect",
+                "description": "URL redirection and preview endpoints"
             },
             {
                 "name": "Health",
@@ -106,9 +105,9 @@ fn build_openapi_spec(config: &AppConfig) -> serde_json::Value {
             "/v1/auth/register": auth::register_endpoint(),
             "/v1/auth/login": auth::login_endpoint(),
             "/v1/auth/refresh": auth::refresh_endpoint(),
-            "/v1/auth/verify-email": auth::verify_email_endpoint(),
-            "/v1/auth/resend-verification": auth::resend_verification_endpoint(),
-            "/v1/auth/verification-status": auth::verification_status_endpoint(),
+            "/v1/auth/logout": auth::logout_endpoint(),
+            "/v1/auth/me": auth::get_current_user_endpoint(),
+            "/v1/auth/validate": auth::validate_token_endpoint(),
             "/v1/auth/forgot-password": auth::forgot_password_endpoint(),
             "/v1/auth/reset-password": auth::reset_password_endpoint(),
             "/v1/links": json!({
@@ -126,8 +125,8 @@ fn build_openapi_spec(config: &AppConfig) -> serde_json::Value {
             "/v1/links/{id}/stats": json!({
                 "get": links::get_link_stats_endpoint()["get"]
             }),
-            "/v1/onboarding/select-plan": onboarding::select_plan_endpoint(),
-            "/v1/onboarding/status": onboarding::onboarding_status_endpoint(),
+            "/{short_code}": redirect::redirect_endpoint(),
+            "/{short_code}/preview": redirect::preview_endpoint(),
             "/v1/health": health::health_endpoint(),
         },
         "components": {
@@ -152,6 +151,13 @@ fn merge_schemas() -> serde_json::Value {
     if let serde_json::Value::Object(ref mut map) = all_schemas {
         if let serde_json::Value::Object(link_schemas_map) = links::link_schemas() {
             for (key, value) in link_schemas_map {
+                map.insert(key, value);
+            }
+        }
+
+        // Merge redirect-specific schemas
+        if let serde_json::Value::Object(redirect_schemas_map) = redirect::preview_response_schema() {
+            for (key, value) in redirect_schemas_map {
                 map.insert(key, value);
             }
         }
