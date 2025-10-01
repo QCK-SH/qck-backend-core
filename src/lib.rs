@@ -124,13 +124,13 @@ pub fn links_routes() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/", post(links::create_link).get(links::list_links))
         .route("/bulk", post(links::bulk_create_links))
-        .route("/check-alias/:alias", get(links::check_alias_availability))
+        .route("/check-alias/{alias}", get(links::check_alias_availability))
         .route("/custom", post(links::create_custom_link))
-        .route("/:id",
+        .route("/{id}",
             get(links::get_link)
             .put(links::update_link)
             .delete(links::delete_link))
-        .route("/:id/stats", get(links::get_link_stats))
+        .route("/{id}/stats", get(links::get_link_stats))
 }
 
 // Health check handler
