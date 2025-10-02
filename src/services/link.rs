@@ -1098,40 +1098,11 @@ impl LinkService {
     // HELPER METHODS
     // =============================================================================
 
-    /// Validate user subscription limits
-    async fn validate_subscription_limits(&self, user: &User) -> Result<(), ServiceError> {
-        use crate::schema::links::dsl;
-
-        let mut conn = self
-            .diesel_pool
-            .get()
-            .await
-            .map_err(|e| ServiceError::DatabaseError(e.to_string()))?;
-
-        let link_count = dsl::links
-            .filter(dsl::user_id.eq(user.id))
-            .filter(dsl::deleted_at.is_null())
-            .filter(dsl::is_active.eq(true))
-            .count()
-            .get_result::<i64>(&mut conn)
-            .await?;
-
-        let limit = match user.subscription_tier.as_str() {
-            "pending" => 1,
-            "free" => 10,
-            "pro" => 250,
-            "business" => 1000, // Base limit, could be higher with additional users
-            "enterprise" => i64::MAX,
-            _ => 10, // Default to free tier limits
-        };
-
-        if link_count >= limit {
-            return Err(ServiceError::SubscriptionLimitExceeded(format!(
-                "Link limit ({}) reached for {} tier",
-                limit, user.subscription_tier
-            )));
-        }
-
+    /// Validate user link limits (OSS version - no limits for self-hosted)
+    /// Cloud version should override this with subscription tier logic
+    async fn validate_subscription_limits(&self, _user: &User) -> Result<(), ServiceError> {
+        // OSS: No link limits (self-hosted, unlimited links for all users)
+        // Cloud: Override this method in CloudLinkService for tier-based limits
         Ok(())
     }
 
