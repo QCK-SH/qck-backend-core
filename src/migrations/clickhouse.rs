@@ -27,16 +27,8 @@ const MIGRATION_004: (&str, &str) = (
     include_str!("../../migrations/clickhouse/004_link_totals_table.sql"),
 );
 
-const MIGRATION_005: (&str, &str) = (
-    "005_seed_demo_link_events",
-    include_str!("../../migrations/clickhouse/005_seed_demo_link_events.sql"),
-);
-
-/// List of all migrations in execution order
+/// List of all migrations in execution order (OSS - no seed migrations)
 const MIGRATIONS: &[(&str, &str)] = &[MIGRATION_001, MIGRATION_002, MIGRATION_003, MIGRATION_004];
-
-/// List of seed migrations that should only run in non-production
-const SEED_MIGRATIONS: &[(&str, &str)] = &[MIGRATION_005];
 
 /// ClickHouse client configuration
 #[derive(Debug, Clone)]
@@ -135,41 +127,8 @@ pub async fn run_migrations() -> Result<usize, Box<dyn Error + Send + Sync>> {
         }
     }
 
-    // Apply seed migrations only in non-production environments
-    if !is_production {
-        info!("[CLICKHOUSE] Running seed migrations for non-production environment");
-
-        for (name, sql) in SEED_MIGRATIONS {
-            if applied_migrations.contains(&name.to_string()) {
-                debug!(
-                    "[CLICKHOUSE] Seed migration {} already applied, skipping",
-                    name
-                );
-                continue;
-            }
-
-            info!("[CLICKHOUSE] Applying seed migration: {}", name);
-
-            match apply_migration(&client, &config, name, sql).await {
-                Ok(()) => {
-                    applied_count += 1;
-                    info!(
-                        "[CLICKHOUSE] ✓ Successfully applied seed migration: {}",
-                        name
-                    );
-                },
-                Err(e) => {
-                    error!(
-                        "[CLICKHOUSE] ✗ Failed to apply seed migration {}: {}",
-                        name, e
-                    );
-                    return Err(format!("Seed migration {} failed: {}", name, e).into());
-                },
-            }
-        }
-    } else {
-        info!("[CLICKHOUSE] Skipping seed migrations in production environment");
-    }
+    // OSS: No seed migrations - clean database only
+    info!("[CLICKHOUSE] OSS build - no seed migrations");
 
     if applied_count > 0 {
         info!(
@@ -589,12 +548,8 @@ async fn get_migration_status_with_config(
     // Check if ClickHouse is available
     let is_healthy = check_clickhouse_health(&client, &config).await.is_ok();
 
-    // Calculate total migrations based on environment
-    let total_migrations = if is_production {
-        MIGRATIONS.len()
-    } else {
-        MIGRATIONS.len() + SEED_MIGRATIONS.len()
-    };
+    // OSS: Only core migrations, no seeds
+    let total_migrations = MIGRATIONS.len();
 
     if !is_healthy {
         return Ok(MigrationStatus {
