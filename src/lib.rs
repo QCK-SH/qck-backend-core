@@ -23,10 +23,9 @@ pub use middleware::auth_middleware;
 pub use models::auth::{AccessTokenClaims, RefreshTokenClaims};
 pub use models::refresh_token::{RefreshToken, RefreshTokenError};
 pub use services::{
-    AnalyticsError, JwtConfig, JwtError, JwtService, MonitoringStats, RateLimitAnalytics,
-    RateLimitConfig, RateLimitEvent, RateLimitMetrics, RateLimitResult, RateLimitService,
-    SubscriptionService, SubscriptionTier, EmailService, VerificationService,
-    PasswordResetService,
+    AnalyticsError, EmailService, JwtConfig, JwtError, JwtService, MonitoringStats,
+    PasswordResetService, RateLimitAnalytics, RateLimitConfig, RateLimitEvent, RateLimitMetrics,
+    RateLimitResult, RateLimitService,
 };
 
 // Re-export handler route builders
@@ -86,7 +85,6 @@ pub async fn initialize_app_state() -> Result<AppState, Box<dyn std::error::Erro
         JwtService::from_env_with_diesel(diesel_pool.clone(), redis_pool.clone())?
     );
 
-    let subscription_service = Arc::new(SubscriptionService::new());
     let password_reset_service = Arc::new(PasswordResetService::new(diesel_pool.clone()));
     let email_service = Arc::new(EmailService::new(config.email.clone())?);
 
@@ -108,7 +106,6 @@ pub async fn initialize_app_state() -> Result<AppState, Box<dyn std::error::Erro
         jwt_service,
         rate_limit_service,
         rate_limit_config,
-        subscription_service,
         password_reset_service,
         email_service,
         clickhouse_analytics,

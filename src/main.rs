@@ -42,7 +42,7 @@ use crate::{
     },
     middleware::auth_middleware,
     services::{
-        EmailService, JwtService, PasswordResetService, RateLimitService, SubscriptionService,
+        EmailService, JwtService, PasswordResetService, RateLimitService,
     },
 };
 
@@ -158,11 +158,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
         };
 
-    // Initialize subscription service
-    info!("Initializing subscription service...");
-    let subscription_service = Arc::new(SubscriptionService::new());
-    info!("✓ Subscription service initialized successfully");
-
     // Initialize password reset service
     info!("Initializing password reset service...");
     let password_reset_service = Arc::new(PasswordResetService::new(diesel_pool.clone()));
@@ -205,7 +200,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         jwt_service,
         rate_limit_service,
         rate_limit_config,
-        subscription_service,
         password_reset_service,
         email_service,
         clickhouse_analytics,
