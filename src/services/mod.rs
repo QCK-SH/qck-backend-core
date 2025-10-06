@@ -24,6 +24,6 @@ pub use jwt::{JwtConfig, JwtError, JwtService};
 pub use link::LinkService;
 pub use password_reset::{PasswordResetService, PasswordResetTokenInfo};
 pub use rate_limit::{
-    RateLimitConfig, RateLimitError, RateLimitResult, RateLimitService, SubscriptionLimits,
+    RateLimitConfig, RateLimitError, RateLimitResult, RateLimitService,
 };
 pub use short_code::{GenerationStats, ShortCodeError, ShortCodeGenerator};

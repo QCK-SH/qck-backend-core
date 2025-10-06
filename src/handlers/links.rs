@@ -79,21 +79,11 @@ pub async fn create_link(
         Err(_) => return LinkError::NotFound.into_response(),
     };
 
-    // Check rate limiting based on subscription tier
-    use crate::models::user::SubscriptionTier;
-    use crate::services::rate_limit::SubscriptionLimits;
-
-    // Parse string subscription tier to enum
-    let subscription_tier = user
-        .subscription_tier
-        .parse::<SubscriptionTier>()
-        .unwrap_or(SubscriptionTier::Free); // Default to Free if parsing fails
-
-    let rate_limit_config = SubscriptionLimits::get_tier_config(&subscription_tier, None); // TODO: Add team user count support
+    // Check rate limiting (OSS: same limit for all users)
     let rate_limit_key = format!("user:{}:link_creation", user.id);
     let rate_limit_check = state
         .rate_limit_service
-        .check_rate_limit_with_config(&rate_limit_key, &rate_limit_config)
+        .check_rate_limit(&rate_limit_key, "/api/links")
         .await;
 
     match rate_limit_check {
@@ -702,56 +692,10 @@ pub async fn bulk_create_links(
         Err(_) => return LinkError::NotFound.into_response(),
     };
 
-    // Check subscription limits BEFORE processing
-    use crate::models::user::SubscriptionTier;
-    use crate::schema::links::dsl;
-    use diesel::prelude::*;
-    use diesel_async::RunQueryDsl;
-
-    // Get current active link count
-    let current_active_count: i64 = match dsl::links
-        .filter(dsl::user_id.eq(user_uuid))
-        .filter(dsl::is_active.eq(true))
-        .filter(dsl::deleted_at.is_null())
-        .count()
-        .get_result(&mut conn)
-        .await
-    {
-        Ok(count) => count,
-        Err(e) => return LinkError::DatabaseError(e.to_string()).into_response(),
-    };
-
-    // Parse subscription tier and check limits
-    let subscription_tier = user
-        .subscription_tier
-        .parse::<SubscriptionTier>()
-        .unwrap_or(SubscriptionTier::Free);
-
-    let max_links = subscription_tier.max_active_links(None).unwrap_or(10) as i64;
-    let remaining_quota = max_links.saturating_sub(current_active_count);
-
-    // Check if they can create ANY links
-    if remaining_quota <= 0 {
-        return LinkError::BadRequest(format!(
-            "Link limit ({}) reached for {} tier. Cannot create more links.",
-            max_links, user.subscription_tier
-        ))
-        .into_response();
-    }
-
-    // Check if they're trying to create more than allowed
-    let requested_count = requests.len() as i64;
-    if requested_count > remaining_quota {
-        return LinkError::BadRequest(format!(
-            "Cannot create {} links. You have {} remaining in your {} tier quota.",
-            requested_count, remaining_quota, user.subscription_tier
-        ))
-        .into_response();
-    }
-
     let link_service = LinkService::new(&state);
     let mut results = Vec::new();
     let mut errors = Vec::new();
+    let requested_count = requests.len();
 
     info!(
         "Processing bulk creation of {} links for user {}",

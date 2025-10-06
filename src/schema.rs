@@ -62,42 +62,6 @@ diesel::table! {
     use diesel::sql_types::*;
     use diesel::pg::sql_types::*;
 
-    payments (id) {
-        id -> Uuid,
-        user_id -> Uuid,
-        #[max_length = 50]
-        provider -> Varchar,
-        #[max_length = 255]
-        provider_customer_id -> Nullable<Varchar>,
-        #[max_length = 255]
-        provider_payment_id -> Nullable<Varchar>,
-        #[max_length = 255]
-        provider_subscription_id -> Nullable<Varchar>,
-        amount -> Int4,
-        #[max_length = 3]
-        currency -> Varchar,
-        #[max_length = 50]
-        status -> Varchar,
-        #[max_length = 50]
-        payment_method -> Nullable<Varchar>,
-        #[max_length = 50]
-        subscription_tier -> Varchar,
-        #[max_length = 20]
-        billing_period -> Nullable<Varchar>,
-        metadata -> Nullable<Jsonb>,
-        failure_reason -> Nullable<Text>,
-        created_at -> Timestamptz,
-        updated_at -> Timestamptz,
-        completed_at -> Nullable<Timestamptz>,
-        failed_at -> Nullable<Timestamptz>,
-        refunded_at -> Nullable<Timestamptz>,
-    }
-}
-
-diesel::table! {
-    use diesel::sql_types::*;
-    use diesel::pg::sql_types::*;
-
     refresh_tokens (id) {
         id -> Uuid,
         user_id -> Uuid,
@@ -147,13 +111,11 @@ diesel::table! {
 
 diesel::joinable!(links -> users (user_id));
 diesel::joinable!(password_reset_tokens -> users (user_id));
-diesel::joinable!(payments -> users (user_id));
 diesel::joinable!(refresh_tokens -> users (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     links,
     password_reset_tokens,
-    payments,
     refresh_tokens,
     users,
 );

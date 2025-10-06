@@ -141,7 +141,6 @@ pub struct RateLimitService {
     redis_pool: RedisPool,
     default_config: RateLimitConfig,
     endpoint_configs: HashMap<String, RateLimitConfig>,
-    subscription_configs: HashMap<String, RateLimitConfig>,
     analytics: Option<RateLimitAnalytics>,
 }
 
@@ -175,68 +174,10 @@ impl RateLimitService {
         // Default configuration for unspecified endpoints
         let default_config = RateLimitConfig::default_api();
 
-        // Subscription tier configurations
-        let mut subscription_configs = HashMap::new();
-        subscription_configs.insert(
-            "free".to_string(),
-            RateLimitConfig {
-                max_requests: 100,
-                window_seconds: 3600,
-                burst_limit: Some(5),
-                block_duration: 300,
-                distributed: true,
-            },
-        );
-
-        subscription_configs.insert(
-            "personal".to_string(),
-            RateLimitConfig {
-                max_requests: 1000,
-                window_seconds: 3600,
-                burst_limit: Some(25),
-                block_duration: 90,
-                distributed: true,
-            },
-        );
-
-        subscription_configs.insert(
-            "pro".to_string(),
-            RateLimitConfig {
-                max_requests: 5000,
-                window_seconds: 3600,
-                burst_limit: Some(100),
-                block_duration: 60,
-                distributed: true,
-            },
-        );
-
-        subscription_configs.insert(
-            "enterprise".to_string(),
-            RateLimitConfig {
-                max_requests: 15000,
-                window_seconds: 3600,
-                burst_limit: Some(300),
-                block_duration: 30,
-                distributed: true,
-            },
-        );
-
-        subscription_configs.insert(
-            "api".to_string(),
-            RateLimitConfig {
-                max_requests: 50000,
-                window_seconds: 3600,
-                burst_limit: Some(1000),
-                block_duration: 10,
-                distributed: true,
-            },
-        );
-
         Self {
             redis_pool,
             default_config,
             endpoint_configs,
-            subscription_configs,
             analytics: None,
         }
     }
@@ -433,21 +374,16 @@ impl RateLimitService {
         &self.default_config
     }
 
-    /// Check user-specific rate limit based on subscription tier
+    /// Check user-specific rate limit (OSS: all users get same default config)
     #[instrument(skip(self))]
     pub async fn check_user_rate_limit(
         &self,
         user_id: &str,
-        subscription_tier: &str,
+        _subscription_tier: &str,
         endpoint: &str,
     ) -> Result<RateLimitResult, RateLimitError> {
-        let config = self
-            .subscription_configs
-            .get(subscription_tier)
-            .unwrap_or(&self.default_config);
-
         let key = format!("user:{}:{}", user_id, endpoint);
-        self.sliding_window_check(&key, config).await
+        self.sliding_window_check(&key, &self.default_config).await
     }
 
     /// Get rate limiting statistics for monitoring
@@ -532,61 +468,6 @@ impl RateLimitService {
     }
 }
 
-// =============================================================================
-// SUBSCRIPTION TIER UTILITIES
-// =============================================================================
-
-/// Utility functions for subscription tier management
-pub struct SubscriptionLimits;
-
-impl SubscriptionLimits {
-    /// Get rate limit configuration for subscription tier using new SubscriptionTier enum
-    pub fn get_tier_config(
-        tier: &crate::models::user::SubscriptionTier,
-        user_count: Option<u32>,
-    ) -> RateLimitConfig {
-        RateLimitConfig {
-            max_requests: tier.link_creation_rate_limit(user_count),
-            window_seconds: 3600, // 1 hour window
-            burst_limit: Some(match tier {
-                crate::models::user::SubscriptionTier::Pending => 2, // Very low burst for unverified
-                crate::models::user::SubscriptionTier::Free => 5,    // Small burst allowance
-                crate::models::user::SubscriptionTier::Pro => 25,    // Moderate burst
-                crate::models::user::SubscriptionTier::Business => 100, // High burst for teams
-                crate::models::user::SubscriptionTier::Enterprise => 500, // Very high burst
-            }),
-            block_duration: match tier {
-                crate::models::user::SubscriptionTier::Pending => 600, // 10 minutes penalty
-                crate::models::user::SubscriptionTier::Free => 300,    // 5 minutes
-                crate::models::user::SubscriptionTier::Pro => 90,      // 1.5 minutes
-                crate::models::user::SubscriptionTier::Business => 60, // 1 minute
-                crate::models::user::SubscriptionTier::Enterprise => 30, // 30 seconds
-            },
-            distributed: true,
-        }
-    }
-
-    /// Legacy string-based method for backward compatibility
-    pub fn get_tier_config_legacy(tier: &str) -> RateLimitConfig {
-        use crate::models::user::SubscriptionTier;
-        let subscription_tier = match tier {
-            "pending" => SubscriptionTier::Pending,
-            "free" => SubscriptionTier::Free,
-            "personal" | "pro" => SubscriptionTier::Pro, // Map "personal" to Pro
-            "business" => SubscriptionTier::Business,
-            "enterprise" => SubscriptionTier::Enterprise,
-            _ => SubscriptionTier::Free, // Default to Free for unknown tiers
-        };
-        Self::get_tier_config(&subscription_tier, None)
-    }
-
-    /// Check if tier has unlimited access to specific endpoint
-    pub fn is_unlimited_endpoint(tier: &str, endpoint: &str) -> bool {
-        // Enterprise tier gets unlimited access to redirects
-        tier == "enterprise" && endpoint.starts_with("/r/")
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -604,41 +485,4 @@ mod tests {
         assert_eq!(link_config.burst_limit.unwrap(), 10);
     }
 
-    #[test]
-    fn test_subscription_tier_configs() {
-        use crate::models::user::SubscriptionTier;
-
-        let free_config = SubscriptionLimits::get_tier_config(&SubscriptionTier::Free, None);
-        assert_eq!(free_config.max_requests, 100);
-
-        let enterprise_config =
-            SubscriptionLimits::get_tier_config(&SubscriptionTier::Enterprise, None);
-        assert_eq!(enterprise_config.max_requests, 15000);
-
-        let pro_config = SubscriptionLimits::get_tier_config(&SubscriptionTier::Pro, None);
-        assert_eq!(pro_config.max_requests, 1000);
-
-        let business_config =
-            SubscriptionLimits::get_tier_config(&SubscriptionTier::Business, Some(5));
-        assert_eq!(business_config.max_requests, 5000); // 1K base + 5 users * 800/user
-
-        let pending_config = SubscriptionLimits::get_tier_config(&SubscriptionTier::Pending, None);
-        assert_eq!(pending_config.max_requests, 5); // Pending tier gets very limited access
-    }
-
-    #[test]
-    fn test_unlimited_endpoint_check() {
-        assert!(SubscriptionLimits::is_unlimited_endpoint(
-            "enterprise",
-            "/r/abc123"
-        ));
-        assert!(!SubscriptionLimits::is_unlimited_endpoint(
-            "pro",
-            "/r/abc123"
-        ));
-        assert!(!SubscriptionLimits::is_unlimited_endpoint(
-            "enterprise",
-            "/api/links"
-        ));
-    }
 }

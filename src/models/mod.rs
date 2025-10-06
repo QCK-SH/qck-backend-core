@@ -1,7 +1,6 @@
 pub mod auth;
 pub mod link;
 pub mod password_reset;
-pub mod payment;
 pub mod refresh_token;
 pub mod user;
 
@@ -12,6 +11,5 @@ pub use link::{
     LinkPagination, LinkResponse, NewLink, UpdateLink, UpdateLinkRequest,
 };
 pub use password_reset::*;
-pub use payment::*;
 pub use refresh_token::*;
 pub use user::*;

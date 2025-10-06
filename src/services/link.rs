@@ -1284,9 +1284,8 @@ impl LinkService {
         &self,
         new_link: NewLink,
         user_id: Uuid,
-        subscription_tier: &str,
+        _subscription_tier: &str,
     ) -> Result<Link, ServiceError> {
-        use crate::models::user::SubscriptionTier;
         use crate::schema::links::dsl;
 
         let mut conn = self
@@ -1295,45 +1294,14 @@ impl LinkService {
             .await
             .map_err(|e| ServiceError::DatabaseError(e.to_string()))?;
 
-        // Parse subscription tier outside the transaction closure
-        let subscription_tier = subscription_tier
-            .parse::<SubscriptionTier>()
-            .unwrap_or(SubscriptionTier::Free);
-
-        // Use transaction for atomic operations
+        // Insert the new link (OSS: no quota limits)
         conn.build_transaction()
             .run::<_, diesel::result::Error, _>(|conn| {
                 Box::pin(async move {
-                    // 1. Check user's active link count against subscription limits
-                    let current_active_count: i64 = dsl::links
-                        .filter(dsl::user_id.eq(user_id))
-                        .filter(dsl::deleted_at.is_null())
-                        .filter(dsl::is_active.eq(true))
-                        .count()
-                        .get_result(conn)
-                        .await?;
-
-                    // Check against subscription limit
-                    if let Some(max_links) = subscription_tier.max_active_links(None) {
-                        if current_active_count >= max_links as i64 {
-                            // Return a custom error for link limit exceeded
-                            return Err(diesel::result::Error::DatabaseError(
-                                diesel::result::DatabaseErrorKind::CheckViolation,
-                                Box::new(
-                                    "Active link limit exceeded for subscription tier".to_string(),
-                                ),
-                            ));
-                        }
-                    }
-
-                    // 2. Insert the new link (atomically)
-                    let link = diesel::insert_into(dsl::links)
+                    diesel::insert_into(dsl::links)
                         .values(&new_link)
                         .get_result::<Link>(conn)
-                        .await?;
-
-                    // Transaction ensures both the count check and insert are atomic
-                    Ok(link)
+                        .await
                 })
             })
             .await
