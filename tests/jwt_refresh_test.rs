@@ -5,7 +5,7 @@ mod common;
 
 use chrono::Utc;
 use diesel::prelude::*;
-use qck_backend::{
+use qck_backend_core::{
     db::{create_diesel_pool, DieselDatabaseConfig, DieselPool, RedisConfig},
     JwtConfig, JwtService, RedisPool,
 };
@@ -83,7 +83,7 @@ async fn create_test_user(pool: &DieselPool) -> Result<Uuid, diesel::result::Err
         .await
         .expect("Failed to get connection from pool");
 
-    use qck_backend::schema::users;
+    use qck_backend_core::schema::users;
 
     let user_id = Uuid::new_v4();
     let now = Utc::now();
@@ -122,7 +122,7 @@ async fn store_refresh_token(
         .await
         .expect("Failed to get connection from pool");
 
-    use qck_backend::schema::refresh_tokens;
+    use qck_backend_core::schema::refresh_tokens;
 
     // Hash the JTI to match the actual schema
     let jti_hash = format!("{:x}", Sha256::digest(jti.as_bytes()));
@@ -166,7 +166,7 @@ async fn validate_refresh_token(
         .await
         .expect("Failed to get connection from pool");
 
-    use qck_backend::schema::refresh_tokens;
+    use qck_backend_core::schema::refresh_tokens;
 
     // Hash the JTI to match the actual schema
     let jti_hash = format!("{:x}", Sha256::digest(jti.as_bytes()));
@@ -209,7 +209,7 @@ async fn test_token_refresh_with_rotation() {
     // Generate initial token pair
     let user_id = Uuid::new_v4().to_string();
     let email = "test@example.com";
-    let subscription_tier = "premium";
+    let subscription_tier = "free";
     let permissions = vec!["read".to_string(), "write".to_string()];
 
     // Generate initial access token
@@ -301,7 +301,7 @@ async fn test_concurrent_token_generation() {
 
     let user_id = Uuid::new_v4().to_string();
     let email = "concurrent@example.com";
-    let subscription_tier = "pro";
+    let subscription_tier = "free";
     let permissions = vec!["read".to_string(), "write".to_string()];
 
     // Use Arc to share jwt_service across threads
@@ -350,7 +350,7 @@ async fn test_token_metadata_in_claims() {
 
     let user_id = Uuid::new_v4().to_string();
     let email = "metadata@example.com";
-    let subscription_tier = "premium";
+    let subscription_tier = "free";
     let permissions = vec!["read".to_string(), "write".to_string(), "admin".to_string()];
 
     // Generate token with metadata
@@ -375,7 +375,7 @@ async fn test_token_audience_and_issuer() {
 
     let user_id = Uuid::new_v4().to_string();
     let email = "audience@example.com";
-    let subscription_tier = "basic";
+    let subscription_tier = "free";
     let permissions = vec!["read".to_string()];
 
     // Generate token

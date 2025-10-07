@@ -2,8 +2,8 @@
 // DEV-102: Comprehensive login tests with security features
 
 use axum::http::StatusCode;
-use qck_backend::models::user::{NewUser, OnboardingStatus, User};
-use qck_backend::utils::{hash_password, verify_password};
+use qck_backend_core::models::user::{NewUser, OnboardingStatus, User};
+use qck_backend_core::utils::{hash_password, verify_password};
 use serde_json::json;
 use serial_test::serial;
 use std::time::Duration;
@@ -280,7 +280,7 @@ async fn test_login_rate_limiting_per_ip() {
     let test_ip = "192.168.99.99:12345";
 
     // Get the configured rate limit
-    let config = qck_backend::app_config::config();
+    let config = qck_backend_core::app_config::config();
     let max_attempts = config.security.login_rate_limit_per_ip;
     println!("Configured rate limit: {} attempts", max_attempts);
 
@@ -337,7 +337,7 @@ async fn test_login_account_lockout() {
     let user = create_test_user(&app, &email, password).await;
 
     // Get the configured lockout threshold (10 in dev)
-    let config = qck_backend::app_config::config();
+    let config = qck_backend_core::app_config::config();
     let lockout_threshold = config.security.login_lockout_threshold;
 
     // Make failed login attempts up to the lockout threshold

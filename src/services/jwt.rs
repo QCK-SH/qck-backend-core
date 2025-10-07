@@ -463,8 +463,7 @@ impl JwtService {
         }
 
         // Generate new tokens
-        let scope =
-            crate::config::PermissionConfig::get_tier_permissions(user.subscription_tier_str());
+        let scope = crate::config::PermissionConfig::get_default_permissions();
         let access_token = self.generate_access_token(
             &user.id.to_string(),
             &user.email,
@@ -776,9 +775,8 @@ impl JwtService {
                     // Fetch actual user data from database
                     let user = User::find_by_id(tx, existing_token.user_id).await?;
 
-                    // Get user's permissions based on subscription tier
-                    let user_scopes =
-                        PermissionConfig::get_tier_permissions(&user.subscription_tier);
+                    // Get user's permissions (OSS: everyone gets full permissions)
+                    let user_scopes = PermissionConfig::get_default_permissions();
 
                     // Generate new token pair with actual user data
                     let new_access_token = self.generate_access_token(

@@ -9,8 +9,7 @@ use self::types::EmailBuilder;
 use crate::app_config::EmailConfig;
 use anyhow::Result;
 use builders::{
-    PasswordChangedEmailBuilder, PasswordResetEmailBuilder, VerificationEmailBuilder,
-    WelcomeEmailBuilder,
+    PasswordChangedEmailBuilder, PasswordResetEmailBuilder,
 };
 use handlebars::Handlebars;
 use rand::Rng;
@@ -50,22 +49,10 @@ impl EmailService {
 
     /// Register all email templates
     fn register_templates(templates: &mut Handlebars) -> Result<(), types::EmailError> {
-        // Register verification email template
-        let verification_template = include_str!("../../templates/email/verification.html");
-        templates
-            .register_template_string("verification", verification_template)
-            .map_err(|e| types::EmailError::TemplateError(e.to_string()))?;
-
         // Register password reset email template
         let password_reset_template = include_str!("../../templates/email/password_reset.html");
         templates
             .register_template_string("password_reset", password_reset_template)
-            .map_err(|e| types::EmailError::TemplateError(e.to_string()))?;
-
-        // Register welcome email template
-        let welcome_template = include_str!("../../templates/email/welcome.html");
-        templates
-            .register_template_string("welcome", welcome_template)
             .map_err(|e| types::EmailError::TemplateError(e.to_string()))?;
 
         // Register password changed notification template
@@ -82,23 +69,6 @@ impl EmailService {
         let mut rng = rand::thread_rng();
         let code: u32 = rng.gen_range(100000..999999);
         code.to_string()
-    }
-
-    /// Send verification email with 6-digit code
-    #[instrument(skip(self))]
-    pub async fn send_verification_email(
-        &self,
-        to_email: &str,
-        user_name: &str,
-        code: &str,
-    ) -> Result<(), types::EmailError> {
-        info!("Sending verification email to {}", to_email);
-
-        let builder =
-            VerificationEmailBuilder::new(to_email, user_name, code, &self.config, &self.templates);
-
-        let message = builder.build()?;
-        self.sender.send_with_retry(message).await
     }
 
     /// Send password reset email with secure token
@@ -121,21 +91,6 @@ impl EmailService {
 
         let message = builder.build()?;
         self.sender.send_with_retry(message).await
-    }
-
-    /// Send welcome email after successful registration
-    #[instrument(skip(self))]
-    pub async fn send_welcome_email(
-        &self,
-        to_email: &str,
-        user_name: &str,
-    ) -> Result<(), types::EmailError> {
-        info!("Sending welcome email to {}", to_email);
-
-        let builder = WelcomeEmailBuilder::new(to_email, user_name, &self.config, &self.templates);
-
-        let message = builder.build()?;
-        self.sender.send(message).await
     }
 
     /// Send password change security notification

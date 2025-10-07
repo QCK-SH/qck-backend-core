@@ -4,7 +4,7 @@
 use chrono::Utc;
 use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
-use qck_backend::{
+use qck_backend_core::{
     db::{create_diesel_pool, DieselDatabaseConfig, RedisConfig, RedisPool},
     services::jwt::JwtService,
 };
@@ -13,8 +13,8 @@ use tokio::sync::Barrier;
 use uuid::Uuid;
 
 /// Helper function to create a test user
-async fn create_test_user(pool: &qck_backend::db::DieselPool) -> Uuid {
-    use qck_backend::schema::users;
+async fn create_test_user(pool: &qck_backend_core::db::DieselPool) -> Uuid {
+    use qck_backend_core::schema::users;
 
     let mut conn = pool.get().await.expect("Failed to get connection");
     let user_id = Uuid::new_v4();
@@ -41,8 +41,8 @@ async fn create_test_user(pool: &qck_backend::db::DieselPool) -> Uuid {
 }
 
 /// Clean up test user from database
-async fn cleanup_test_user(pool: &qck_backend::db::DieselPool, user_id: Uuid) {
-    use qck_backend::schema::{refresh_tokens, users};
+async fn cleanup_test_user(pool: &qck_backend_core::db::DieselPool, user_id: Uuid) {
+    use qck_backend_core::schema::{refresh_tokens, users};
 
     let mut conn = pool.get().await.expect("Failed to get connection");
 
@@ -60,7 +60,7 @@ async fn cleanup_test_user(pool: &qck_backend::db::DieselPool, user_id: Uuid) {
 }
 
 /// Helper to setup test environment
-async fn setup_test_env() -> (qck_backend::db::DieselPool, RedisPool, JwtService) {
+async fn setup_test_env() -> (qck_backend_core::db::DieselPool, RedisPool, JwtService) {
     dotenv::from_filename(".env.test").ok();
 
     // Setup database pool
@@ -392,11 +392,11 @@ async fn test_refresh_token_expiration_behavior() {
     // Manually expire the token in database for testing
     use diesel::prelude::*;
     use diesel_async::RunQueryDsl;
-    use qck_backend::schema::refresh_tokens;
+    use qck_backend_core::schema::refresh_tokens;
 
     let mut conn = db_pool.get().await.expect("Failed to get connection");
     let jti = initial_validation.unwrap().jti;
-    let jti_hash = qck_backend::models::refresh_token::RefreshToken::hash_jti(&jti);
+    let jti_hash = qck_backend_core::models::refresh_token::RefreshToken::hash_jti(&jti);
 
     // Set expires_at to 1 second from now to respect the check constraint
     diesel::update(refresh_tokens::table)
@@ -458,7 +458,7 @@ async fn test_max_active_tokens_per_user() {
     // Check active token count
     use diesel::prelude::*;
     use diesel_async::RunQueryDsl;
-    use qck_backend::schema::refresh_tokens;
+    use qck_backend_core::schema::refresh_tokens;
 
     let mut conn = db_pool.get().await.expect("Failed to get connection");
 

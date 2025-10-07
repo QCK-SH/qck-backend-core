@@ -1,4 +1,4 @@
-use qck_backend::db::RedisConfig;
+use qck_backend_core::db::RedisConfig;
 use std::time::Duration;
 
 #[test]

@@ -2,7 +2,7 @@
 // DEV-94: Test token generation and validation
 
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey};
-use qck_backend::{JwtConfig, JwtError, JwtService};
+use qck_backend_core::{JwtConfig, JwtError, JwtService};
 
 /// Helper to create test JWT config without relying on environment
 fn create_test_jwt_config() -> JwtConfig {
@@ -30,7 +30,7 @@ fn test_jwt_access_token_generation_and_validation() {
 
     let user_id = "test-user-123";
     let email = "test@example.com";
-    let subscription_tier = "premium";
+    let subscription_tier = "free";
     let scope = vec!["read".to_string(), "write".to_string()];
 
     // Generate access token
@@ -73,7 +73,7 @@ async fn test_jwt_token_expiry_validation() {
 
     let user_id = "test-user-456";
     let email = "expired@example.com";
-    let subscription_tier = "basic";
+    let subscription_tier = "free";
     let scope = vec!["read".to_string()];
 
     // Generate token with 1 second expiry
@@ -92,7 +92,7 @@ async fn test_jwt_token_expiry_validation() {
     let result = jwt_service.validate_access_token(&expired_token);
 
     match result {
-        Err(qck_backend::JwtError::EncodingError(e)) => {
+        Err(qck_backend_core::JwtError::EncodingError(e)) => {
             // JWT library returns EncodingError for expired tokens
             // Check that the error message contains "ExpiredSignature"
             let error_str = format!("{:?}", e);
@@ -140,7 +140,7 @@ fn test_jwt_invalid_token_validation() {
 
     if let Err(e) = result {
         match e {
-            qck_backend::JwtError::EncodingError(_) => {
+            qck_backend_core::JwtError::EncodingError(_) => {
                 // JWT library returns EncodingError for invalid tokens
                 // This is expected behavior
             },
@@ -156,7 +156,7 @@ fn test_jwt_audience_validation() {
 
     let user_id = "test-user-789";
     let email = "audience@example.com";
-    let subscription_tier = "pro";
+    let subscription_tier = "free";
     let scope = vec!["admin".to_string()];
 
     // Generate token with correct audience

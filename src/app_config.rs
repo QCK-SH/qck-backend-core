@@ -540,9 +540,9 @@ impl AppConfig {
                 .unwrap_or(50000),
         };
 
-        // Email configuration
+        // Email configuration (optional for OSS - only for password reset)
         let email_provider: EmailProvider = get_or_default("EMAIL_PROVIDER", "resend").into();
-        let resend_api_key = get_required("RESEND_API_KEY")?;
+        let resend_api_key = get_or_default("RESEND_API_KEY", "dummy-key-for-oss");
         let from_email = get_or_default("EMAIL_FROM_ADDRESS", "noreply@qck.sh");
         let from_name = get_or_default("EMAIL_FROM_NAME", "QCK Platform");
 

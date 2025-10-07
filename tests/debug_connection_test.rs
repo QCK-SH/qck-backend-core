@@ -1,5 +1,5 @@
 // Debug test to isolate connection issue
-use qck_backend::db::{create_diesel_pool, DieselDatabaseConfig};
+use qck_backend_core::db::{create_diesel_pool, DieselDatabaseConfig};
 
 #[tokio::test]
 async fn test_basic_database_connection() {

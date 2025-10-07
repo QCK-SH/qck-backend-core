@@ -9,12 +9,12 @@ use axum::{
 };
 use diesel::prelude::*;
 use diesel_async::{AsyncConnection, AsyncPgConnection};
-use qck_backend::{
+use qck_backend_core::{
     app::AppState,
     config::rate_limit::RateLimitingConfig,
     db::{create_diesel_pool, DieselDatabaseConfig, DieselPool, RedisConfig, RedisPool},
     services::{
-        EmailService, JwtService, PasswordResetService, RateLimitService, SubscriptionService,
+        EmailService, JwtService, PasswordResetService, RateLimitService,
     },
 };
 use serde::Serialize;
@@ -201,10 +201,8 @@ pub async fn setup_test_app() -> TestApp {
 
     let rate_limit_service = Arc::new(RateLimitService::new(redis_pool.clone()));
 
-    let subscription_service = Arc::new(SubscriptionService::new());
-
     // Get config
-    let config = qck_backend::app_config::config();
+    let config = qck_backend_core::app_config::config();
 
     // Create email service
     let email_service =
@@ -215,12 +213,12 @@ pub async fn setup_test_app() -> TestApp {
 
     // Create app state
     let app_state = AppState {
+        config: Arc::new(config.clone()),
         diesel_pool: diesel_pool.clone(),
         redis_pool: redis_pool.clone(),
         jwt_service: jwt_service.clone(),
         rate_limit_service,
         rate_limit_config: Arc::new(RateLimitingConfig::from_env()),
-        subscription_service,
         email_service,
         password_reset_service,
         clickhouse_analytics: None, // Disabled for tests
@@ -229,7 +227,7 @@ pub async fn setup_test_app() -> TestApp {
 
     // Build router with auth routes
     let app = Router::new()
-        .nest("/v1/auth", qck_backend::handlers::auth_routes())
+        .nest("/v1/auth", qck_backend_core::handlers::auth_routes())
         .with_state(app_state);
 
     TestApp {
@@ -253,7 +251,7 @@ impl TestSetup {
         dotenv::from_filename(".env.dev").ok();
 
         // Get API port from app config (which reads from API_PORT env var)
-        let config = qck_backend::app_config::config();
+        let config = qck_backend_core::app_config::config();
         let api_port = config.server.api_port;
 
         // Get database configuration from app_config

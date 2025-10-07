@@ -1,7 +1,7 @@
 // Integration test for rate limiting analytics pipeline
 // Tests the complete analytics flow with rate limiting service
 
-use qck_backend::{RateLimitConfig, RateLimitEvent, RateLimitService};
+use qck_backend_core::{RateLimitConfig, RateLimitEvent, RateLimitService};
 use std::collections::HashMap;
 use uuid::Uuid;
 

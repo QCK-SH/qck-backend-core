@@ -4,8 +4,8 @@
 #[tokio::test]
 async fn test_link_service_exists() {
     // This test just verifies the LinkService can be imported
-    use qck_backend::services::link::LinkService;
-    use qck_backend::services::short_code::ShortCodeGenerator;
+    use qck_backend_core::services::link::LinkService;
+    use qck_backend_core::services::short_code::ShortCodeGenerator;
 
     // If this compiles, we have the basic structure
     assert!(true);
@@ -13,7 +13,7 @@ async fn test_link_service_exists() {
 
 #[tokio::test]
 async fn test_create_link_request_struct() {
-    use qck_backend::models::link::CreateLinkRequest;
+    use qck_backend_core::models::link::CreateLinkRequest;
 
     let request = CreateLinkRequest {
         url: "https://example.com".to_string(),
@@ -31,7 +31,7 @@ async fn test_create_link_request_struct() {
 
 #[tokio::test]
 async fn test_base62_encoding() {
-    use qck_backend::utils::base62::{decode, encode};
+    use qck_backend_core::utils::base62::{decode, encode};
 
     let encoded = encode(12345);
     let decoded = decode(&encoded).unwrap();
@@ -42,7 +42,7 @@ async fn test_base62_encoding() {
 
 #[tokio::test]
 async fn test_short_code_generator() {
-    use qck_backend::services::short_code::ShortCodeGenerator;
+    use qck_backend_core::services::short_code::ShortCodeGenerator;
 
     // Test static encoding/decoding
     let encoded = ShortCodeGenerator::encode_id(999);

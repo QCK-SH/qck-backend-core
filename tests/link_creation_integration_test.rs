@@ -1,7 +1,7 @@
 // DEV-105: Integration tests for Link Creation API
 // Testing the complete flow from request to database
 
-use qck_backend::models::link::{CreateLinkRequest, LinkResponse};
+use qck_backend_core::models::link::{CreateLinkRequest, LinkResponse};
 use serde_json::json;
 
 // Note: These tests require a running test database and Redis instance

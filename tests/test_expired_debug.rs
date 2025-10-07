@@ -1,6 +1,6 @@
 // Debug test for expired link
 use chrono::{Duration, Utc};
-use qck_backend::{
+use qck_backend_core::{
     app::AppState,
     db::{create_diesel_pool, DieselDatabaseConfig, RedisConfig, RedisPool},
     models::link::CreateLinkRequest,
@@ -10,6 +10,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 async fn setup_test_state() -> AppState {
+        config: Arc::new(qck_backend_core::app_config::CONFIG.clone()),
     dotenv::from_filename("../.env.dev").ok();
     std::env::set_var("VALIDATE_DNS", "false");
 
@@ -19,7 +20,7 @@ async fn setup_test_state() -> AppState {
     let redis_pool = RedisPool::new(redis_config).await.unwrap();
 
     let jwt_service = Arc::new(
-        qck_backend::services::JwtService::from_env_with_diesel(
+        qck_backend_core::services::JwtService::from_env_with_diesel(
             diesel_pool.clone(),
             redis_pool.clone(),
         )
@@ -29,19 +30,19 @@ async fn setup_test_state() -> AppState {
     let diesel_pool_clone = diesel_pool.clone();
 
     AppState {
+        config: Arc::new(qck_backend_core::app_config::CONFIG.clone()),
         diesel_pool,
         redis_pool: redis_pool.clone(),
         jwt_service,
-        rate_limit_service: Arc::new(qck_backend::services::RateLimitService::new(
+        rate_limit_service: Arc::new(qck_backend_core::services::RateLimitService::new(
             redis_pool.clone(),
         )),
-        rate_limit_config: Arc::new(qck_backend::config::RateLimitingConfig::from_env()),
-        subscription_service: Arc::new(qck_backend::services::SubscriptionService::new()),
-        password_reset_service: Arc::new(qck_backend::services::PasswordResetService::new(
+        rate_limit_config: Arc::new(qck_backend_core::config::RateLimitingConfig::from_env()),
+        password_reset_service: Arc::new(qck_backend_core::services::PasswordResetService::new(
             diesel_pool_clone,
         )),
         email_service: Arc::new(
-            qck_backend::services::EmailService::new(qck_backend::app_config::CONFIG.email.clone())
+            qck_backend_core::services::EmailService::new(qck_backend_core::app_config::CONFIG.email.clone())
                 .unwrap(),
         ),
         clickhouse_analytics: None, // Disabled for tests
@@ -49,14 +50,14 @@ async fn setup_test_state() -> AppState {
     }
 }
 
-async fn create_test_user(state: &AppState) -> qck_backend::models::user::User {
+async fn create_test_user(state: &AppState) -> qck_backend_core::models::user::User {
     use diesel::prelude::*;
     use diesel_async::RunQueryDsl;
-    use qck_backend::schema::users;
+    use qck_backend_core::schema::users;
 
     let mut conn = state.diesel_pool.get().await.unwrap();
 
-    let new_user = qck_backend::models::user::NewUser {
+    let new_user = qck_backend_core::models::user::NewUser {
         email: format!("test{}@example.com", Uuid::new_v4()),
         password_hash: "hashed_password".to_string(),
         email_verified: true,
@@ -99,7 +100,7 @@ async fn test_expired_link_debug() {
     {
         use diesel::prelude::*;
         use diesel_async::RunQueryDsl;
-        use qck_backend::schema::links::dsl;
+        use qck_backend_core::schema::links::dsl;
 
         let mut conn = state.diesel_pool.get().await.unwrap();
         let expired_time = Utc::now() - Duration::days(1);
@@ -116,10 +117,10 @@ async fn test_expired_link_debug() {
     {
         use diesel::prelude::*;
         use diesel_async::RunQueryDsl;
-        use qck_backend::schema::links::dsl;
+        use qck_backend_core::schema::links::dsl;
 
         let mut conn = state.diesel_pool.get().await.unwrap();
-        let link: qck_backend::models::link::Link =
+        let link: qck_backend_core::models::link::Link =
             dsl::links.find(created.id).first(&mut conn).await.unwrap();
 
         println!("After update - expires_at in DB: {:?}", link.expires_at);

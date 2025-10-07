@@ -1,7 +1,7 @@
 // JWT Integration Tests
 // Test the complete JWT validation flow with blacklisting
 
-use qck_backend::{
+use qck_backend_core::{
     models::auth::AccessTokenClaims,
     services::jwt::{JwtError, JwtService},
     JwtConfig,
@@ -23,7 +23,7 @@ async fn test_jwt_token_generation_with_jti() {
         .generate_access_token(
             "user-123",
             "user@example.com",
-            "premium",
+            "free",
             vec!["read".to_string(), "write".to_string()],
         )
         .expect("Should generate token");
@@ -35,7 +35,7 @@ async fn test_jwt_token_generation_with_jti() {
 
     assert_eq!(claims.sub, "user-123");
     assert_eq!(claims.email, "user@example.com");
-    assert_eq!(claims.tier, "premium");
+    assert_eq!(claims.tier, "free");
     assert!(!claims.jti.is_empty(), "JTI should not be empty");
     println!("✅ JWT generation with JTI works correctly");
 }
@@ -51,7 +51,7 @@ async fn test_access_token_claims_structure() {
         "user-456".to_string(),
         "jti-789".to_string(),
         "test@example.com".to_string(),
-        "enterprise".to_string(),
+        "free".to_string(),
         vec!["admin".to_string(), "read".to_string(), "write".to_string()],
         "qck.sh".to_string(),
         "qck.sh".to_string(),
@@ -62,47 +62,22 @@ async fn test_access_token_claims_structure() {
     assert_eq!(claims.sub, "user-456");
     assert_eq!(claims.jti, "jti-789");
     assert_eq!(claims.email, "test@example.com");
-    assert_eq!(claims.tier, "enterprise");
+    assert_eq!(claims.tier, "free");
     assert_eq!(claims.iat, now);
     assert_eq!(claims.exp, now + 900);
     println!("✅ AccessTokenClaims with JTI works correctly");
 }
 
-#[test]
-fn test_permission_config_functionality() {
-    use qck_backend::config::PermissionConfig;
-
-    // Test enterprise permissions
-    let enterprise_perms = PermissionConfig::get_tier_permissions("enterprise");
-    assert!(enterprise_perms.contains(&"admin".to_string()));
-    assert!(enterprise_perms.contains(&"links:unlimited".to_string()));
-    assert!(enterprise_perms.contains(&"api:unlimited".to_string()));
-
-    // Test free tier permissions
-    let free_perms = PermissionConfig::get_tier_permissions("free");
-    assert!(free_perms.contains(&"free".to_string()));
-    assert!(free_perms.contains(&"links:10".to_string()));
-    assert!(!free_perms.contains(&"admin".to_string()));
-
-    // Test rate limits
-    let enterprise_limits = PermissionConfig::get_tier_rate_limits("enterprise");
-    assert_eq!(enterprise_limits.requests_per_minute, 1000);
-    assert_eq!(enterprise_limits.burst_capacity, 100);
-
-    let free_limits = PermissionConfig::get_tier_rate_limits("free");
-    assert_eq!(free_limits.requests_per_minute, 10);
-    assert_eq!(free_limits.burst_capacity, 5);
-
-    println!("✅ PermissionConfig functionality works correctly");
-}
+// Removed test_permission_config_functionality since OSS doesn't have tier-based permissions
+// All users get the same default permissions in OSS version
 
 // Commenting out test since From<AccessTokenClaims> is not implemented for AuthenticatedUser
 // and we shouldn't modify the main code just for tests
 /*
 #[test]
 fn test_authenticated_user_from_claims() {
-    use qck_backend::middleware::auth::AuthenticatedUser;
-    use qck_backend::models::auth::AccessTokenClaims;
+    use qck_backend_core::middleware::auth::AuthenticatedUser;
+    use qck_backend_core::models::auth::AccessTokenClaims;
 
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -113,7 +88,7 @@ fn test_authenticated_user_from_claims() {
         "user-123".to_string(),
         "jti-456".to_string(),
         "user@example.com".to_string(),
-        "premium".to_string(),
+        "free".to_string(),
         vec!["read".to_string(), "write".to_string()],
         "qck.sh".to_string(),
         "qck.sh".to_string(),
@@ -126,9 +101,9 @@ fn test_authenticated_user_from_claims() {
     assert_eq!(auth_user.user_id, "user-123");
     assert_eq!(auth_user.token_id, "jti-456");
     assert_eq!(auth_user.email, "user@example.com");
-    assert_eq!(auth_user.subscription_tier, "premium");
+    assert_eq!(auth_user.subscription_tier, "free");
 
-    // Should have premium permissions from PermissionConfig
+    // Should have default permissions from PermissionConfig
     assert!(auth_user.permissions.contains(&"premium".to_string()));
     assert!(auth_user.permissions.contains(&"basic".to_string()));
     assert!(auth_user.permissions.contains(&"links:1000".to_string()));

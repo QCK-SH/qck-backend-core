@@ -1,7 +1,7 @@
 // Test new Base62 optimizations: batch checking, pre-generated pools, alerting
 
-use qck_backend::db::{create_diesel_pool, DieselDatabaseConfig};
-use qck_backend::services::short_code::ShortCodeGenerator;
+use qck_backend_core::db::{create_diesel_pool, DieselDatabaseConfig};
+use qck_backend_core::services::short_code::ShortCodeGenerator;
 use std::time::Instant;
 
 #[tokio::test]

@@ -2,8 +2,8 @@
 // Tests collision detection, Redis caching, and profanity filtering
 
 use diesel::prelude::*;
-use qck_backend::db::{create_diesel_pool, DieselDatabaseConfig, RedisConfig, RedisPool};
-use qck_backend::services::short_code::ShortCodeGenerator;
+use qck_backend_core::db::{create_diesel_pool, DieselDatabaseConfig, RedisConfig, RedisPool};
+use qck_backend_core::services::short_code::ShortCodeGenerator;
 use std::time::Instant;
 
 #[tokio::test]
@@ -140,7 +140,7 @@ async fn test_batch_generation() {
 
 #[tokio::test]
 async fn test_encoding_decoding() {
-    use qck_backend::services::short_code::ShortCodeGenerator;
+    use qck_backend_core::services::short_code::ShortCodeGenerator;
 
     // Test encode/decode functions
     let test_cases = vec![

@@ -1,8 +1,8 @@
 // REAL TESTS for new Base62 features
 // Testing counter-based generation, Redis reservation, dynamic scaling, JSON loading
 
-use qck_backend::db::{create_diesel_pool, DieselDatabaseConfig, RedisConfig, RedisPool};
-use qck_backend::services::short_code::ShortCodeGenerator;
+use qck_backend_core::db::{create_diesel_pool, DieselDatabaseConfig, RedisConfig, RedisPool};
+use qck_backend_core::services::short_code::ShortCodeGenerator;
 use std::collections::HashSet;
 
 #[tokio::test]

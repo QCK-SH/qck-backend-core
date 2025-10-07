@@ -1,4 +1,4 @@
-use qck_backend::db::{RedisConfig, RedisPool};
+use qck_backend_core::db::{RedisConfig, RedisPool};
 use redis::AsyncCommands;
 use std::sync::Arc;
 use std::time::{Duration, Instant};

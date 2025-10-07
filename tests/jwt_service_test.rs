@@ -6,7 +6,7 @@ mod common;
 use common::{test_permissions, TEST_PERMISSIONS_BASIC, TEST_PERMISSIONS_PREMIUM};
 use diesel::prelude::*;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey};
-use qck_backend::{
+use qck_backend_core::{
     db::{create_diesel_pool, DieselDatabaseConfig, DieselPool},
     models::user::OnboardingStatus,
     schema::users,

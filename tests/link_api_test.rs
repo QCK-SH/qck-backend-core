@@ -1,8 +1,8 @@
 // DEV-105: Link Creation API Tests
 // Testing the complete link management flow
 
-use qck_backend::models::link::{CreateLinkRequest, LinkMetadata, LinkPagination};
-use qck_backend::utils::url_validator::{SecurityScanner, UrlValidator};
+use qck_backend_core::models::link::{CreateLinkRequest, LinkMetadata, LinkPagination};
+use qck_backend_core::utils::url_validator::{SecurityScanner, UrlValidator};
 
 #[tokio::test]
 async fn test_url_validation() {
@@ -47,7 +47,7 @@ async fn test_security_scanner() {
     assert!(safe_result.is_safe);
     assert_eq!(
         safe_result.risk_level,
-        qck_backend::utils::url_validator::RiskLevel::Safe
+        qck_backend_core::utils::url_validator::RiskLevel::Safe
     );
 
     // Test blocked URLs
@@ -55,7 +55,7 @@ async fn test_security_scanner() {
     assert!(!blocked_result.is_safe);
     assert_eq!(
         blocked_result.risk_level,
-        qck_backend::utils::url_validator::RiskLevel::Blocked
+        qck_backend_core::utils::url_validator::RiskLevel::Blocked
     );
 }
 

@@ -1,5 +1,5 @@
 // Test to verify Redis pool connection limiting
-use qck_backend::db::{RedisConfig, RedisPool};
+use qck_backend_core::db::{RedisConfig, RedisPool};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 

@@ -66,18 +66,6 @@ pub trait EmailBuilder {
     fn build(&self) -> Result<EmailMessage, EmailError>;
 }
 
-/// Data structure for verification email template
-#[derive(Serialize)]
-pub struct VerificationEmailData {
-    pub code: String,
-    pub user_name: String,
-    pub user_email: String,
-    pub app_name: String,
-    pub app_url: String,
-    pub support_email: String,
-    pub expiry_minutes: u32,
-}
-
 /// Data structure for password reset email template
 #[derive(Serialize)]
 pub struct PasswordResetEmailData {
@@ -87,15 +75,6 @@ pub struct PasswordResetEmailData {
     pub app_url: String,
     pub support_email: String,
     pub expiry_minutes: u32,
-}
-
-/// Data structure for welcome email template
-#[derive(Serialize)]
-pub struct WelcomeEmailData {
-    pub user_name: String,
-    pub app_name: String,
-    pub app_url: String,
-    pub support_email: String,
 }
 
 /// Data structure for password change notification template

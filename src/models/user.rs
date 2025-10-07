@@ -10,23 +10,17 @@ use uuid::Uuid;
 
 use crate::schema::users;
 
-/// Onboarding status enumeration for tracking user progress
+/// Onboarding status enumeration for tracking user progress (OSS simplified)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum OnboardingStatus {
-    Registered,     // Just registered, needs email verification
-    Verified,       // Email verified, needs to select plan
-    PlanSelected,   // Plan selected, needs payment (if pro)
-    PaymentPending, // Payment initiated but not completed
-    Completed,      // Onboarding completed, full access
+    Registered, // Just registered (auto-verified in OSS)
+    Completed,  // Onboarding completed, full access
 }
 
 impl OnboardingStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
             OnboardingStatus::Registered => "registered",
-            OnboardingStatus::Verified => "verified",
-            OnboardingStatus::PlanSelected => "plan_selected",
-            OnboardingStatus::PaymentPending => "payment_pending",
             OnboardingStatus::Completed => "completed",
         }
     }
@@ -34,10 +28,9 @@ impl OnboardingStatus {
     pub fn from_string(s: &str) -> Result<Self, String> {
         match s {
             "registered" => Ok(OnboardingStatus::Registered),
-            "verified" => Ok(OnboardingStatus::Verified),
-            "plan_selected" => Ok(OnboardingStatus::PlanSelected),
-            "payment_pending" => Ok(OnboardingStatus::PaymentPending),
             "completed" => Ok(OnboardingStatus::Completed),
+            // Legacy compatibility for existing data
+            "verified" | "plan_selected" | "payment_pending" => Ok(OnboardingStatus::Completed),
             _ => Err(format!("Invalid onboarding status: {}", s)),
         }
     }
@@ -292,21 +285,10 @@ impl User {
         }
     }
 
-    /// Check if user needs to complete payment
+    /// Check if user has completed onboarding (OSS simplified - no payments)
     pub fn needs_payment(&self) -> bool {
-        match (self.onboarding_status_enum(), self.subscription_tier_enum()) {
-            (Ok(OnboardingStatus::PlanSelected), SubscriptionTier::Pro) => true,
-            (Ok(_), _) => false,
-            (Err(_), _) => {
-                // Log warning and default to false for safety
-                tracing::warn!(
-                    "Invalid onboarding status '{}' for user {}, treating as no payment needed",
-                    self.onboarding_status,
-                    self.id
-                );
-                false
-            },
-        }
+        // OSS version has no payments
+        false
     }
 }
 
@@ -331,10 +313,8 @@ mod tests {
 
     #[test]
     fn test_onboarding_status_conversion() {
+        // OSS simplified onboarding - only registered and completed
         assert_eq!(OnboardingStatus::Registered.as_str(), "registered");
-        assert_eq!(OnboardingStatus::Verified.as_str(), "verified");
-        assert_eq!(OnboardingStatus::PlanSelected.as_str(), "plan_selected");
-        assert_eq!(OnboardingStatus::PaymentPending.as_str(), "payment_pending");
         assert_eq!(OnboardingStatus::Completed.as_str(), "completed");
 
         assert_eq!(
@@ -342,21 +322,24 @@ mod tests {
             Ok(OnboardingStatus::Registered)
         );
         assert_eq!(
-            OnboardingStatus::from_string("verified"),
-            Ok(OnboardingStatus::Verified)
-        );
-        assert_eq!(
-            OnboardingStatus::from_string("plan_selected"),
-            Ok(OnboardingStatus::PlanSelected)
-        );
-        assert_eq!(
-            OnboardingStatus::from_string("payment_pending"),
-            Ok(OnboardingStatus::PaymentPending)
-        );
-        assert_eq!(
             OnboardingStatus::from_string("completed"),
             Ok(OnboardingStatus::Completed)
         );
+
+        // Legacy compatibility - old statuses map to completed
+        assert_eq!(
+            OnboardingStatus::from_string("verified"),
+            Ok(OnboardingStatus::Completed)
+        );
+        assert_eq!(
+            OnboardingStatus::from_string("plan_selected"),
+            Ok(OnboardingStatus::Completed)
+        );
+        assert_eq!(
+            OnboardingStatus::from_string("payment_pending"),
+            Ok(OnboardingStatus::Completed)
+        );
+
         assert!(OnboardingStatus::from_string("invalid").is_err());
     }
 
@@ -400,17 +383,17 @@ mod tests {
             email_verified_at: Some(now),
             full_name: "Test User".to_string(),
             company_name: None,
-            onboarding_status: OnboardingStatus::PlanSelected.as_str().to_string(),
+            onboarding_status: OnboardingStatus::Registered.as_str().to_string(),
         };
 
         assert_eq!(
             plan_selected_user.onboarding_status_enum().unwrap(),
-            OnboardingStatus::PlanSelected
+            OnboardingStatus::Registered
         );
         assert!(!plan_selected_user.is_onboarding_complete());
-        assert!(plan_selected_user.needs_payment());
+        assert!(!plan_selected_user.needs_payment()); // OSS has no payments
 
-        // Test plan selected free user (no payment needed)
+        // Test another registered user (OSS - no payment needed)
         let plan_selected_free_user = User {
             id: Uuid::new_v4(),
             email: "test@example.com".to_string(),
@@ -423,10 +406,10 @@ mod tests {
             email_verified_at: Some(now),
             full_name: "Test User".to_string(),
             company_name: None,
-            onboarding_status: OnboardingStatus::PlanSelected.as_str().to_string(),
+            onboarding_status: OnboardingStatus::Registered.as_str().to_string(),
         };
 
-        assert!(!plan_selected_free_user.needs_payment());
+        assert!(!plan_selected_free_user.needs_payment()); // OSS has no payments
 
         // Test registered user
         let registered_user = User {

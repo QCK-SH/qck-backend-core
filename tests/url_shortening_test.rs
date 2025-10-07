@@ -5,7 +5,7 @@ use actix_web::web;
 use chrono::Utc;
 use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
-use qck_backend::{
+use qck_backend_core::{
     app::AppState,
     db::{create_diesel_pool, RedisPool},
     models::{
@@ -44,7 +44,7 @@ async fn setup_test_state() -> AppState {
 }
 
 async fn create_test_user(state: &AppState) -> User {
-    use qck_backend::schema::users::dsl::*;
+    use qck_backend_core::schema::users::dsl::*;
 
     let test_user = NewUser {
         id: Uuid::new_v4(),
@@ -87,7 +87,7 @@ async fn create_test_user(state: &AppState) -> User {
 }
 
 async fn cleanup_test_links(state: &AppState, user_id: Uuid) {
-    use qck_backend::schema::links::dsl::*;
+    use qck_backend_core::schema::links::dsl::*;
 
     let mut conn = state.diesel_pool.get().await.unwrap();
 
@@ -98,7 +98,7 @@ async fn cleanup_test_links(state: &AppState, user_id: Uuid) {
 }
 
 async fn cleanup_test_user(state: &AppState, user_id: Uuid) {
-    use qck_backend::schema::users::dsl::*;
+    use qck_backend_core::schema::users::dsl::*;
 
     let mut conn = state.diesel_pool.get().await.unwrap();
 
@@ -395,7 +395,7 @@ async fn test_link_update() {
     let created = service.create_link(&user, request).await.unwrap();
 
     // Update the link
-    use qck_backend::models::link::UpdateLinkRequest;
+    use qck_backend_core::models::link::UpdateLinkRequest;
 
     let update_request = UpdateLinkRequest {
         url: Some("https://www.updated.com".to_string()),
@@ -704,7 +704,7 @@ async fn test_subscription_limits() {
     let mut user = create_test_user(&state).await;
 
     // Update to free tier
-    use qck_backend::schema::users::dsl::*;
+    use qck_backend_core::schema::users::dsl::*;
     let mut conn = state.diesel_pool.get().await.unwrap();
 
     diesel::update(users.filter(id.eq(user.id)))
@@ -930,7 +930,7 @@ async fn test_profanity_filtering() {
 
 #[tokio::test]
 async fn test_click_count_sync() {
-    use qck_backend::services::link::sync_click_counts_to_database;
+    use qck_backend_core::services::link::sync_click_counts_to_database;
 
     let state = setup_test_state().await;
     let user = create_test_user(&state).await;

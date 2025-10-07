@@ -1,7 +1,7 @@
 // DEV-124: Base62 Short Code Generator Tests
 // Testing the heart of our URL shortening system
 
-use qck_backend::services::short_code::ShortCodeGenerator;
+use qck_backend_core::services::short_code::ShortCodeGenerator;
 
 #[test]
 fn test_base62_encoding() {

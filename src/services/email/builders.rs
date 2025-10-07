@@ -3,83 +3,10 @@
 
 use super::types::{
     EmailBuilder, EmailError, EmailMessage, PasswordChangedEmailData, PasswordResetEmailData,
-    VerificationEmailData, WelcomeEmailData,
 };
 use crate::app_config::EmailConfig;
 use handlebars::Handlebars;
 use tracing::instrument;
-
-/// Builder for verification emails with 6-digit codes
-pub struct VerificationEmailBuilder<'a> {
-    to_email: &'a str,
-    user_name: &'a str,
-    code: &'a str,
-    config: &'a EmailConfig,
-    templates: &'a Handlebars<'a>,
-}
-
-impl<'a> VerificationEmailBuilder<'a> {
-    pub fn new(
-        to_email: &'a str,
-        user_name: &'a str,
-        code: &'a str,
-        config: &'a EmailConfig,
-        templates: &'a Handlebars<'a>,
-    ) -> Self {
-        Self {
-            to_email,
-            user_name,
-            code,
-            config,
-            templates,
-        }
-    }
-}
-
-impl<'a> EmailBuilder for VerificationEmailBuilder<'a> {
-    #[instrument(skip(self))]
-    fn build(&self) -> Result<EmailMessage, EmailError> {
-        // Prepare template data
-        let data = VerificationEmailData {
-            code: self.code.to_string(),
-            user_name: self.user_name.to_string(),
-            user_email: self.to_email.to_string(),
-            app_name: self.config.from_name.clone(),
-            app_url: self.config.frontend_url.clone(),
-            support_email: self.config.support_email.clone(),
-            expiry_minutes: (self.config.verification_code_ttl / 60) as u32,
-        };
-
-        // Render HTML content
-        let html = self
-            .templates
-            .render("verification", &data)
-            .map_err(|e| EmailError::TemplateError(e.to_string()))?;
-
-        // Create plain text version
-        let text = format!(
-            "Hi {},\n\n\
-            Your verification code is: {}\n\n\
-            This code will expire in {} minutes.\n\n\
-            If you didn't request this code, please ignore this email.\n\n\
-            Best regards,\n\
-            The {} Team",
-            self.user_name, self.code, data.expiry_minutes, self.config.from_name
-        );
-
-        // Build email message
-        Ok(EmailMessage::new(
-            format!("{} <{}>", self.config.from_name, self.config.from_email),
-            vec![self.to_email.to_string()],
-            format!(
-                "Your {} verification code: {}",
-                self.config.from_name, self.code
-            ),
-            html,
-        )
-        .with_text(text))
-    }
-}
 
 /// Builder for password reset emails with secure tokens
 pub struct PasswordResetEmailBuilder<'a> {
@@ -151,74 +78,6 @@ impl<'a> EmailBuilder for PasswordResetEmailBuilder<'a> {
             format!("{} <{}>", self.config.from_name, self.config.from_email),
             vec![self.to_email.to_string()],
             format!("Password Reset Request - {}", self.config.from_name),
-            html,
-        )
-        .with_text(text))
-    }
-}
-
-/// Builder for welcome emails after successful registration
-pub struct WelcomeEmailBuilder<'a> {
-    to_email: &'a str,
-    user_name: &'a str,
-    config: &'a EmailConfig,
-    templates: &'a Handlebars<'a>,
-}
-
-impl<'a> WelcomeEmailBuilder<'a> {
-    pub fn new(
-        to_email: &'a str,
-        user_name: &'a str,
-        config: &'a EmailConfig,
-        templates: &'a Handlebars<'a>,
-    ) -> Self {
-        Self {
-            to_email,
-            user_name,
-            config,
-            templates,
-        }
-    }
-}
-
-impl<'a> EmailBuilder for WelcomeEmailBuilder<'a> {
-    #[instrument(skip(self))]
-    fn build(&self) -> Result<EmailMessage, EmailError> {
-        // Prepare template data
-        let data = WelcomeEmailData {
-            user_name: self.user_name.to_string(),
-            app_name: self.config.from_name.clone(),
-            app_url: self.config.frontend_url.clone(),
-            support_email: self.config.support_email.clone(),
-        };
-
-        // Render HTML content
-        let html = self
-            .templates
-            .render("welcome", &data)
-            .map_err(|e| EmailError::TemplateError(e.to_string()))?;
-
-        // Create plain text version
-        let text = format!(
-            "Welcome to {}, {}!\n\n\
-            Thank you for joining us. Your account has been successfully created and verified.\n\n\
-            You can now access all features of our platform at:\n\
-            {}\n\n\
-            If you have any questions, feel free to contact us at {}.\n\n\
-            Best regards,\n\
-            The {} Team",
-            self.config.from_name,
-            self.user_name,
-            self.config.frontend_url,
-            self.config.support_email,
-            self.config.from_name
-        );
-
-        // Build email message
-        Ok(EmailMessage::new(
-            format!("{} <{}>", self.config.from_name, self.config.from_email),
-            vec![self.to_email.to_string()],
-            format!("Welcome to {}!", self.config.from_name),
             html,
         )
         .with_text(text))
@@ -357,24 +216,6 @@ mod tests {
     }
 
     #[test]
-    fn test_verification_email_builder() {
-        let config = setup_test_config();
-        let templates = setup_test_templates();
-        let builder = VerificationEmailBuilder::new(
-            "user@example.com",
-            "John Doe",
-            "123456",
-            &config,
-            &templates,
-        );
-
-        let message = builder.build().unwrap();
-        assert_eq!(message.to, vec!["user@example.com"]);
-        assert_eq!(message.subject, "Your Test App verification code: 123456");
-        assert!(message.text.is_some());
-    }
-
-    #[test]
     fn test_password_reset_email_builder() {
         let config = setup_test_config();
         let templates = setup_test_templates();
@@ -390,18 +231,6 @@ mod tests {
         assert_eq!(message.to, vec!["user@example.com"]);
         assert_eq!(message.subject, "Password Reset Request - Test App");
         assert!(message.text.unwrap().contains("reset_token_123"));
-    }
-
-    #[test]
-    fn test_welcome_email_builder() {
-        let config = setup_test_config();
-        let templates = setup_test_templates();
-        let builder = WelcomeEmailBuilder::new("user@example.com", "John Doe", &config, &templates);
-
-        let message = builder.build().unwrap();
-        assert_eq!(message.to, vec!["user@example.com"]);
-        assert_eq!(message.subject, "Welcome to Test App!");
-        assert!(message.text.is_some());
     }
 
     #[test]

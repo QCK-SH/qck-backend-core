@@ -1,7 +1,7 @@
 // DEV-105: Click Tracking Performance Tests
 // Testing the optimized Redis-based click tracking system
 
-use qck_backend::services::link::sync_click_counts_to_database;
+use qck_backend_core::services::link::sync_click_counts_to_database;
 
 #[tokio::test]
 async fn test_click_tracking_performance() {
@@ -36,7 +36,7 @@ async fn test_redis_counter_ttl() {
 
 #[test]
 fn test_constants_are_reasonable() {
-    use qck_backend::services::link::*;
+    use qck_backend_core::services::link::*;
 
     // Test that our constants make sense
     // Link cache TTL should be reasonable (1 hour = 3600 seconds)

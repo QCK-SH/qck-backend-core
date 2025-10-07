@@ -1,6 +1,6 @@
 // Simple test that remember_me flag properly affects refresh token expiry calculation
-use qck_backend::app_config::config;
-use qck_backend::services::jwt::{JwtConfig, JwtService};
+use qck_backend_core::app_config::config;
+use qck_backend_core::services::jwt::{JwtConfig, JwtService};
 use std::env;
 
 #[test]

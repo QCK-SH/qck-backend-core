@@ -48,19 +48,8 @@ async fn test_successful_registration() {
         body["data"]["company_name"].as_str().unwrap(),
         "New Company"
     );
-    // Email verification may be enabled or disabled depending on environment
-    let email_verification_required = body["data"]["email_verification_required"]
-        .as_bool()
-        .unwrap_or(false);
-    let verification_sent = body["data"]["verification_sent"].as_bool().unwrap_or(false);
-
-    // If email verification is required, verification should be sent
-    if email_verification_required {
-        assert!(
-            verification_sent,
-            "If email verification is required, verification should be sent"
-        );
-    }
+    // OSS version auto-verifies users, no email verification needed
+    // Users should be immediately active and verified
 }
 
 #[tokio::test]

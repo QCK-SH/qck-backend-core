@@ -2,7 +2,7 @@ mod common;
 
 use common::{test_table_name, CountRow, TestRow};
 use diesel::sql_query;
-use qck_backend::db::{
+use qck_backend_core::db::{
     create_diesel_pool, mask_connection_string, DatabaseConfig, DieselDatabaseConfig, DieselPool,
 };
 use std::sync::Arc;

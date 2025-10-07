@@ -5,14 +5,14 @@ use chrono::{Duration, Utc};
 use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 // Removed ipnetwork - using String for IP addresses for compatibility and simplification; avoids extra dependency and serialization issues in tests
-use qck_backend::{
+use qck_backend_core::{
     db::{create_diesel_pool, DieselDatabaseConfig},
     models::refresh_token::{DeviceInfo, RefreshToken, RefreshTokenError},
 };
 use uuid::Uuid;
 
 /// Helper function to setup test database pool
-async fn setup_test_pool() -> qck_backend::db::DieselPool {
+async fn setup_test_pool() -> qck_backend_core::db::DieselPool {
     dotenv::from_filename(".env.test").ok();
     let config = DieselDatabaseConfig::default();
     create_diesel_pool(config)
@@ -21,8 +21,8 @@ async fn setup_test_pool() -> qck_backend::db::DieselPool {
 }
 
 /// Helper function to create a test user
-async fn create_test_user(pool: &qck_backend::db::DieselPool) -> Uuid {
-    use qck_backend::schema::users;
+async fn create_test_user(pool: &qck_backend_core::db::DieselPool) -> Uuid {
+    use qck_backend_core::schema::users;
 
     let mut conn = pool.get().await.expect("Failed to get connection");
     let user_id = Uuid::new_v4();
@@ -49,8 +49,8 @@ async fn create_test_user(pool: &qck_backend::db::DieselPool) -> Uuid {
 }
 
 /// Helper function to cleanup test data
-async fn cleanup_test_data(pool: &qck_backend::db::DieselPool, user_id: Uuid) {
-    use qck_backend::schema::{refresh_tokens, users};
+async fn cleanup_test_data(pool: &qck_backend_core::db::DieselPool, user_id: Uuid) {
+    use qck_backend_core::schema::{refresh_tokens, users};
 
     let mut conn = pool.get().await.expect("Failed to get connection");
 

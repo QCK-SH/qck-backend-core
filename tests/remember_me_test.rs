@@ -1,7 +1,7 @@
 // Test that remember_me flag properly extends refresh token expiry
-use qck_backend::app_config::config;
-use qck_backend::db::{create_diesel_pool, DieselDatabaseConfig, RedisConfig, RedisPool};
-use qck_backend::services::JwtService;
+use qck_backend_core::app_config::config;
+use qck_backend_core::db::{create_diesel_pool, DieselDatabaseConfig, RedisConfig, RedisPool};
+use qck_backend_core::services::JwtService;
 use std::env;
 use std::time::Duration;
 
@@ -43,7 +43,7 @@ async fn test_remember_me_token_expiry() {
     // Create a real test user in the database
     use diesel::prelude::*;
     use diesel_async::RunQueryDsl;
-    use qck_backend::schema::users;
+    use qck_backend_core::schema::users;
     use uuid::Uuid;
 
     let mut conn = diesel_pool.get().await.expect("Failed to get connection");

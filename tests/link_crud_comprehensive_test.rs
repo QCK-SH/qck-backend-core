@@ -2,7 +2,7 @@
 // Tests ALL functionality including bulk operations, caching, and performance
 
 use chrono::{Duration, Utc};
-use qck_backend::{
+use qck_backend_core::{
     app::AppState,
     db::{create_diesel_pool, DieselDatabaseConfig, RedisConfig, RedisPool},
     models::user::User,
@@ -13,13 +13,14 @@ use std::time::Instant;
 use uuid::Uuid;
 
 // Import types we'll use in tests
-type CreateLinkRequest = qck_backend::models::link::CreateLinkRequest;
-type UpdateLinkRequest = qck_backend::models::link::UpdateLinkRequest;
-type LinkFilter = qck_backend::models::link::LinkFilter;
-type LinkPagination = qck_backend::models::link::LinkPagination;
-type LinkService = qck_backend::services::link::LinkService;
+type CreateLinkRequest = qck_backend_core::models::link::CreateLinkRequest;
+type UpdateLinkRequest = qck_backend_core::models::link::UpdateLinkRequest;
+type LinkFilter = qck_backend_core::models::link::LinkFilter;
+type LinkPagination = qck_backend_core::models::link::LinkPagination;
+type LinkService = qck_backend_core::services::link::LinkService;
 
 async fn setup_test_state() -> AppState {
+        config: Arc::new(qck_backend_core::app_config::CONFIG.clone()),
     // Load environment for testing from parent directory
     dotenv::from_filename("../.env.dev").ok();
 
@@ -36,7 +37,7 @@ async fn setup_test_state() -> AppState {
 
     // Create services
     let jwt_service = Arc::new(
-        qck_backend::services::JwtService::from_env_with_diesel(
+        qck_backend_core::services::JwtService::from_env_with_diesel(
             diesel_pool.clone(),
             redis_pool.clone(),
         )
@@ -46,19 +47,19 @@ async fn setup_test_state() -> AppState {
     let diesel_pool_clone = diesel_pool.clone();
 
     AppState {
+        config: Arc::new(qck_backend_core::app_config::CONFIG.clone()),
         diesel_pool,
         redis_pool: redis_pool.clone(),
         jwt_service,
-        rate_limit_service: Arc::new(qck_backend::services::RateLimitService::new(
+        rate_limit_service: Arc::new(qck_backend_core::services::RateLimitService::new(
             redis_pool.clone(),
         )),
-        rate_limit_config: Arc::new(qck_backend::config::RateLimitingConfig::from_env()),
-        subscription_service: Arc::new(qck_backend::services::SubscriptionService::new()),
-        password_reset_service: Arc::new(qck_backend::services::PasswordResetService::new(
+        rate_limit_config: Arc::new(qck_backend_core::config::RateLimitingConfig::from_env()),
+        password_reset_service: Arc::new(qck_backend_core::services::PasswordResetService::new(
             diesel_pool_clone,
         )),
         email_service: Arc::new(
-            qck_backend::services::EmailService::new(qck_backend::app_config::CONFIG.email.clone())
+            qck_backend_core::services::EmailService::new(qck_backend_core::app_config::CONFIG.email.clone())
                 .unwrap(),
         ),
         clickhouse_analytics: None, // Disabled for tests
@@ -69,11 +70,11 @@ async fn setup_test_state() -> AppState {
 async fn create_test_user(state: &AppState) -> User {
     use diesel::prelude::*;
     use diesel_async::RunQueryDsl;
-    use qck_backend::schema::users;
+    use qck_backend_core::schema::users;
 
     let mut conn = state.diesel_pool.get().await.unwrap();
 
-    let new_user = qck_backend::models::user::NewUser {
+    let new_user = qck_backend_core::models::user::NewUser {
         email: format!("test{}@example.com", Uuid::new_v4()),
         password_hash: "hashed_password".to_string(),
         email_verified: true,
@@ -93,7 +94,7 @@ async fn create_test_user(state: &AppState) -> User {
 async fn cleanup_test_user(state: &AppState, user_id: Uuid) {
     use diesel::prelude::*;
     use diesel_async::RunQueryDsl;
-    use qck_backend::schema::{links, users};
+    use qck_backend_core::schema::{links, users};
 
     let mut conn = state.diesel_pool.get().await.unwrap();
 
@@ -269,10 +270,10 @@ async fn test_bulk_delete_links() {
     for link_id in &links_to_delete {
         use diesel::prelude::*;
         use diesel_async::RunQueryDsl;
-        use qck_backend::schema::links::dsl;
+        use qck_backend_core::schema::links::dsl;
 
         let mut conn = state.diesel_pool.get().await.unwrap();
-        let link: qck_backend::models::link::Link =
+        let link: qck_backend_core::models::link::Link =
             dsl::links.find(link_id).first(&mut conn).await.unwrap();
 
         assert!(!link.is_active, "Link should be deactivated");
@@ -282,10 +283,10 @@ async fn test_bulk_delete_links() {
     for link_id in &link_ids[5..] {
         use diesel::prelude::*;
         use diesel_async::RunQueryDsl;
-        use qck_backend::schema::links::dsl;
+        use qck_backend_core::schema::links::dsl;
 
         let mut conn = state.diesel_pool.get().await.unwrap();
-        let link: qck_backend::models::link::Link =
+        let link: qck_backend_core::models::link::Link =
             dsl::links.find(link_id).first(&mut conn).await.unwrap();
 
         assert!(link.is_active, "Link should still be active");
@@ -329,10 +330,10 @@ async fn test_bulk_update_status() {
     for link_id in &link_ids {
         use diesel::prelude::*;
         use diesel_async::RunQueryDsl;
-        use qck_backend::schema::links::dsl;
+        use qck_backend_core::schema::links::dsl;
 
         let mut conn = state.diesel_pool.get().await.unwrap();
-        let link: qck_backend::models::link::Link =
+        let link: qck_backend_core::models::link::Link =
             dsl::links.find(link_id).first(&mut conn).await.unwrap();
 
         assert!(!link.is_active, "Link should be inactive");
@@ -349,10 +350,10 @@ async fn test_bulk_update_status() {
     for link_id in &link_ids {
         use diesel::prelude::*;
         use diesel_async::RunQueryDsl;
-        use qck_backend::schema::links::dsl;
+        use qck_backend_core::schema::links::dsl;
 
         let mut conn = state.diesel_pool.get().await.unwrap();
-        let link: qck_backend::models::link::Link =
+        let link: qck_backend_core::models::link::Link =
             dsl::links.find(link_id).first(&mut conn).await.unwrap();
 
         assert!(link.is_active, "Link should be active");
@@ -522,10 +523,10 @@ async fn test_click_count_sync() {
     // Verify click count was updated in database
     use diesel::prelude::*;
     use diesel_async::RunQueryDsl;
-    use qck_backend::schema::links::dsl;
+    use qck_backend_core::schema::links::dsl;
 
     let mut conn = state.diesel_pool.get().await.unwrap();
-    let link: qck_backend::models::link::Link =
+    let link: qck_backend_core::models::link::Link =
         dsl::links.find(created.id).first(&mut conn).await.unwrap();
 
     assert!(
@@ -573,12 +574,12 @@ async fn test_permanent_delete() {
     // Verify link is completely gone from database
     use diesel::prelude::*;
     use diesel_async::RunQueryDsl;
-    use qck_backend::schema::links::dsl;
+    use qck_backend_core::schema::links::dsl;
 
     let mut conn = state.diesel_pool.get().await.unwrap();
     let link_exists = dsl::links
         .find(link_id)
-        .first::<qck_backend::models::link::Link>(&mut conn)
+        .first::<qck_backend_core::models::link::Link>(&mut conn)
         .await;
 
     assert!(
@@ -685,11 +686,11 @@ async fn test_subscription_limits() {
     // Create a free tier user
     use diesel::prelude::*;
     use diesel_async::RunQueryDsl;
-    use qck_backend::schema::users;
+    use qck_backend_core::schema::users;
 
     let mut conn = state.diesel_pool.get().await.unwrap();
     let free_user = diesel::insert_into(users::table)
-        .values(&qck_backend::models::user::NewUser {
+        .values(&qck_backend_core::models::user::NewUser {
             email: format!("free{}@example.com", Uuid::new_v4()),
             password_hash: "hashed_password".to_string(),
             email_verified: true,
@@ -765,7 +766,7 @@ async fn test_expired_link_redirect() {
     {
         use diesel::prelude::*;
         use diesel_async::RunQueryDsl;
-        use qck_backend::schema::links::dsl;
+        use qck_backend_core::schema::links::dsl;
 
         let mut conn = state.diesel_pool.get().await.unwrap();
         diesel::update(dsl::links.find(created.id))
