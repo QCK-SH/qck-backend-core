@@ -249,14 +249,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Complete router setup
     let app = app
-        // Public authentication routes (no auth required)
-        .nest("/v1/auth", auth_routes())
-        // API routes (protected with auth middleware) - includes /auth/me and /auth/validate
-        .nest("/v1", api_routes()
+        // Protected routes FIRST (more specific paths with auth middleware)
+        .nest("/v1", protected_routes()
             .route_layer(axum_middleware::from_fn_with_state(
                 app_state.clone(),
                 auth_middleware,
-            )))
+            ))
+        )
+        // Public auth routes AFTER (fallback for remaining auth endpoints)
+        .nest("/v1/auth", auth_routes())
         // Short URL redirects at root level (qck.sh/abc123)
         .route("/{short_code}", get(handlers::redirect::redirect_to_url))
         .route("/{short_code}/preview", get(handlers::redirect::preview_url))
@@ -293,16 +294,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-// API routes for link management and protected auth endpoints
-fn api_routes() -> Router<AppState> {
+// Protected routes (require JWT authentication)
+fn protected_routes() -> Router<AppState> {
     use axum::routing::{delete, get, post, put};
     use handlers::{auth, links};
 
     Router::new()
-        // Protected auth routes (require valid JWT)
+        // Protected auth routes
+        .route("/auth/logout", post(auth::logout))
         .route("/auth/me", get(auth::get_current_user))
         .route("/auth/validate", post(auth::validate_token))
-        // Link management routes (protected)
+        // Link management routes
         .route("/links", post(links::create_link).get(links::list_links))
         .route("/links/bulk", post(links::bulk_create_links))
         .route("/links/check-alias/{alias}", get(links::check_alias_availability))
