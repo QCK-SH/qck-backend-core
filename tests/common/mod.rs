@@ -225,9 +225,10 @@ pub async fn setup_test_app() -> TestApp {
         max_connections: config.database.max_connections,
     };
 
-    // Build router with auth routes
+    // Build router with auth routes (public + protected)
     let app = Router::new()
-        .nest("/v1/auth", qck_backend_core::handlers::auth_routes())
+        .nest("/v1/auth", qck_backend_core::handlers::public_auth_routes())
+        .nest("/v1/auth", qck_backend_core::handlers::protected_auth_routes())
         .with_state(app_state);
 
     TestApp {
