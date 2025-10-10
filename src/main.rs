@@ -37,8 +37,8 @@ use crate::{
         RedisConfig, RedisPool,
     },
     handlers::{
-        auth as auth_handlers, auth_routes, docs as docs_handlers, links as link_handlers,
-        redirect as redirect_handlers,
+        auth as auth_handlers, protected_auth_routes, public_auth_routes, docs as docs_handlers,
+        links as link_handlers, redirect as redirect_handlers,
     },
     middleware::auth_middleware,
     services::{
@@ -249,15 +249,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Complete router setup
     let app = app
-        // Protected routes FIRST (more specific paths with auth middleware)
-        .nest("/v1", protected_routes()
+        // Public auth routes (no auth required)
+        .nest("/v1/auth", public_auth_routes())
+        // Protected auth routes (with auth middleware)
+        .nest("/v1/auth", protected_auth_routes()
             .route_layer(axum_middleware::from_fn_with_state(
                 app_state.clone(),
                 auth_middleware,
             ))
         )
-        // Public auth routes AFTER (fallback for remaining auth endpoints)
-        .nest("/v1/auth", auth_routes())
+        // Protected link routes (with auth middleware)
+        .nest("/v1", link_routes()
+            .route_layer(axum_middleware::from_fn_with_state(
+                app_state.clone(),
+                auth_middleware,
+            ))
+        )
         // Short URL redirects at root level (qck.sh/abc123)
         .route("/{short_code}", get(handlers::redirect::redirect_to_url))
         .route("/{short_code}/preview", get(handlers::redirect::preview_url))
@@ -294,17 +301,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-// Protected routes (require JWT authentication)
-fn protected_routes() -> Router<AppState> {
+// Link management routes (all require JWT authentication)
+fn link_routes() -> Router<AppState> {
     use axum::routing::{delete, get, post, put};
-    use handlers::{auth, links};
+    use handlers::links;
 
     Router::new()
-        // Protected auth routes
-        .route("/auth/logout", post(auth::logout))
-        .route("/auth/me", get(auth::get_current_user))
-        .route("/auth/validate", post(auth::validate_token))
-        // Link management routes
         .route("/links", post(links::create_link).get(links::list_links))
         .route("/links/bulk", post(links::bulk_create_links))
         .route("/links/check-alias/{alias}", get(links::check_alias_availability))

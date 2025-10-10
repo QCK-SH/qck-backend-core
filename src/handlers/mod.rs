@@ -15,12 +15,20 @@ use axum::{
     Router,
 };
 
-// Authentication routes (public - no auth required)
-pub fn auth_routes() -> Router<AppState> {
+// Public authentication routes (no auth required)
+pub fn public_auth_routes() -> Router<AppState> {
     Router::new()
         .route("/register", post(auth::register))
         .route("/login", post(auth::login))
         .route("/refresh", post(auth::refresh_token))
         .route("/forgot-password", post(auth::forgot_password))
         .route("/reset-password", post(auth::reset_password))
+}
+
+// Protected authentication routes (require JWT auth middleware)
+pub fn protected_auth_routes() -> Router<AppState> {
+    Router::new()
+        .route("/logout", post(auth::logout))
+        .route("/me", get(auth::get_current_user))
+        .route("/validate", post(auth::validate_token))
 }

@@ -29,7 +29,7 @@ pub use services::{
 };
 
 // Re-export handler route builders
-pub use handlers::auth_routes;
+pub use handlers::{public_auth_routes, protected_auth_routes};
 
 // Re-export individual handlers for direct use
 pub use handlers::auth::{register, login, refresh_token, logout, get_current_user, validate_token, forgot_password, reset_password};
