@@ -92,7 +92,6 @@ pub struct AppConfig {
     pub enable_tracing: bool,
     pub enable_rate_limiting: bool,
     pub enable_swagger_ui: bool,
-    pub disable_embedded_migrations: bool,
     pub is_oss_deployment: bool,  // true for OSS, false for cloud
 
     // Nested configs for compatibility
@@ -426,8 +425,6 @@ impl AppConfig {
         let enable_tracing = parse_bool_or_default("ENABLE_TRACING", "true");
         let enable_rate_limiting = parse_bool_or_default("ENABLE_RATE_LIMITING", "true");
         let enable_swagger_ui = parse_bool_or_default("ENABLE_SWAGGER_UI", "false");
-        let disable_embedded_migrations =
-            parse_bool_or_default("DISABLE_EMBEDDED_MIGRATIONS", "false");
         let is_oss_deployment = parse_bool_or_default("IS_OSS_DEPLOYMENT", "true");  // Default to true for OSS
 
         // OSS deployments never require email verification
@@ -641,7 +638,6 @@ impl AppConfig {
             enable_tracing,
             enable_rate_limiting,
             enable_swagger_ui,
-            disable_embedded_migrations,
             is_oss_deployment,
             // Nested configs
             server,

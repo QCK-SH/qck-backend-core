@@ -102,16 +102,8 @@ pub async fn run_all_migrations(
     Ok(())
 }
 
-/// Check if migrations should run based on environment variables
+/// Check if migrations should run
+/// Always returns true - embedded migrations are always executed
 pub fn should_run_migrations() -> bool {
-    let config = crate::app_config::config();
-
-    // Check explicit disable flag
-    if config.disable_embedded_migrations {
-        return false;
-    }
-
-    // Always run migrations in all environments
-    // This ensures ClickHouse tables are created for development testing
     true
 }
