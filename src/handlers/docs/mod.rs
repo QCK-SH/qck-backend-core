@@ -40,7 +40,7 @@ pub async fn redirect_to_docs(original_uri: OriginalUri) -> impl IntoResponse {
 pub use swagger_ui::serve_swagger_ui;
 
 /// Build the complete OpenAPI specification
-/// Made public to allow cloud backend to extend with cloud-specific endpoints
+/// Made public to allow extended platforms to add additional endpoints
 pub fn build_openapi_spec(config: &AppConfig) -> serde_json::Value {
     // Determine the API base URL from environment
     let api_url = std::env::var("NEXT_PUBLIC_API_URL").unwrap_or_else(|_| {
@@ -145,7 +145,7 @@ pub fn build_openapi_spec(config: &AppConfig) -> serde_json::Value {
 }
 
 /// Merge all schemas into a single JSON object
-/// Made public to allow cloud backend to extend with cloud-specific schemas
+/// Made public to allow extended platforms to add additional schemas
 pub fn merge_schemas() -> serde_json::Value {
     let mut all_schemas = schemas::all_schemas();
 

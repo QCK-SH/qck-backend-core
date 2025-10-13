@@ -92,7 +92,7 @@ pub struct AppConfig {
     pub enable_tracing: bool,
     pub enable_rate_limiting: bool,
     pub enable_swagger_ui: bool,
-    pub is_oss_deployment: bool,  // true for OSS, false for cloud
+    pub is_oss_deployment: bool,  // Deployment type: true for self-hosted, false for SaaS
 
     // Nested configs for compatibility
     pub server: ServerConfig,
@@ -427,11 +427,11 @@ impl AppConfig {
         let enable_swagger_ui = parse_bool_or_default("ENABLE_SWAGGER_UI", "false");
         let is_oss_deployment = parse_bool_or_default("IS_OSS_DEPLOYMENT", "true");  // Default to true for OSS
 
-        // OSS deployments never require email verification
+        // Self-hosted deployments never require email verification
         let require_email_verification = if is_oss_deployment {
-            false  // OSS: always false
+            false  // Self-hosted: always false (no email verification)
         } else {
-            parse_bool_or_default("REQUIRE_EMAIL_VERIFICATION", "true")  // Cloud: default to true
+            parse_bool_or_default("REQUIRE_EMAIL_VERIFICATION", "true")  // Managed platform: configurable
         };
 
         let rust_log = get_or_default("RUST_LOG", "info");

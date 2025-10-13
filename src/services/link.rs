@@ -1098,11 +1098,10 @@ impl LinkService {
     // HELPER METHODS
     // =============================================================================
 
-    /// Validate user link limits (OSS version - no limits for self-hosted)
-    /// Cloud version should override this with subscription tier logic
+    /// Validate user subscription limits
+    /// Self-hosted deployments have no link creation limits
     async fn validate_subscription_limits(&self, _user: &User) -> Result<(), ServiceError> {
-        // OSS: No link limits (self-hosted, unlimited links for all users)
-        // Cloud: Override this method in CloudLinkService for tier-based limits
+        // No subscription limits enforced for self-hosted installations
         Ok(())
     }
 

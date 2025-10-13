@@ -9,8 +9,7 @@ use crate::{
     RedisPool,
 };
 
-// Application state shared across handlers (OSS)
-// NOTE: VerificationService, SubscriptionService are cloud-only
+// Application state shared across handlers
 #[derive(Clone)]
 pub struct AppState {
     pub config: Arc<AppConfig>,

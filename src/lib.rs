@@ -44,7 +44,7 @@ use diesel_async::AsyncPgConnection;
 pub type DbPool = Pool<AsyncDieselConnectionManager<AsyncPgConnection>>;
 
 // Library initialization function for external consumers
-// This allows qck-cloud to initialize the core backend services
+// This allows extended platforms to initialize the core backend services
 pub async fn initialize_app_state() -> Result<AppState, Box<dyn std::error::Error>> {
     use std::sync::Arc;
     use tracing::info;

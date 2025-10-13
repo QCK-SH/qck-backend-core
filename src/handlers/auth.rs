@@ -719,16 +719,16 @@ pub async fn register(
         password_hash,
         email_verified: if config.is_oss_deployment { true } else { false },  // OSS: auto-verify
         subscription_tier: if config.is_oss_deployment {
-            "unlimited".to_string()  // OSS: all features available
+            "free".to_string()  // OSS: free tier, limits not enforced
         } else {
-            "pending".to_string()    // Cloud: needs plan selection
+            "pending".to_string()    // Requires plan selection
         },
         full_name,
         company_name,
         onboarding_status: if config.is_oss_deployment {
             OnboardingStatus::Completed.as_str().to_string()  // OSS: skip onboarding
         } else {
-            OnboardingStatus::Registered.as_str().to_string() // Cloud: normal flow
+            OnboardingStatus::Registered.as_str().to_string() // Requires onboarding flow
         },
     };
 

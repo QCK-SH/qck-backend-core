@@ -1,6 +1,5 @@
-// Services module for QCK Core Backend (OSS)
+// Services module for QCK Core Backend
 // Business logic layer for the application
-// NOTE: Verification, Subscription services are cloud-only (qck-cloud)
 
 pub mod analytics;
 pub mod background_tasks;

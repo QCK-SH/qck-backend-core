@@ -12,7 +12,6 @@ use builders::{
     PasswordChangedEmailBuilder, PasswordResetEmailBuilder,
 };
 use handlebars::Handlebars;
-use rand::Rng;
 use sender::EmailSender;
 use std::sync::Arc;
 use tracing::{info, instrument};
@@ -62,13 +61,6 @@ impl EmailService {
             .map_err(|e| types::EmailError::TemplateError(e.to_string()))?;
 
         Ok(())
-    }
-
-    /// Generate a random 6-digit verification code
-    pub fn generate_verification_code() -> String {
-        let mut rng = rand::thread_rng();
-        let code: u32 = rng.gen_range(100000..999999);
-        code.to_string()
     }
 
     /// Send password reset email with secure token
@@ -155,21 +147,5 @@ mod tests {
         let config = create_test_config();
         let service = EmailService::new(config);
         assert!(service.is_ok());
-    }
-
-    #[test]
-    fn test_verification_code_generation() {
-        let code = EmailService::generate_verification_code();
-        assert_eq!(code.len(), 6);
-        assert!(code.chars().all(|c| c.is_ascii_digit()));
-    }
-
-    #[test]
-    fn test_verification_code_range() {
-        for _ in 0..100 {
-            let code = EmailService::generate_verification_code();
-            let num: u32 = code.parse().unwrap();
-            assert!(num >= 100000 && num <= 999999);
-        }
     }
 }

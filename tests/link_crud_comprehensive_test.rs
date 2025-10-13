@@ -20,7 +20,6 @@ type LinkPagination = qck_backend_core::models::link::LinkPagination;
 type LinkService = qck_backend_core::services::link::LinkService;
 
 async fn setup_test_state() -> AppState {
-        config: Arc::new(qck_backend_core::app_config::CONFIG.clone()),
     // Load environment for testing from parent directory
     dotenv::from_filename("../.env.dev").ok();
 
