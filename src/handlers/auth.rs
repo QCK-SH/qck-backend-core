@@ -132,13 +132,18 @@ fn create_refresh_token_cookie(token: String, remember_me: bool, config: &crate:
     cookie_builder.build()
 }
 
+/// Validate JWT token format (must have exactly 3 parts separated by dots)
+fn is_valid_jwt_format(token: &str) -> bool {
+    token.split('.').count() == 3
+}
+
 /// Extract refresh token from cookie (web) or JSON body (mobile)
 fn extract_refresh_token(jar: &CookieJar, body: &axum::body::Bytes) -> Result<String, Response> {
     // Try cookie first (web clients)
     if let Some(cookie) = jar.get("refresh_token") {
         let token = cookie.value();
         // Basic JWT format validation: must have 3 parts separated by dots
-        if token.split('.').count() != 3 {
+        if !is_valid_jwt_format(token) {
             return Err(create_auth_error_response("Invalid refresh token format"));
         }
         return Ok(token.to_string());
@@ -153,7 +158,7 @@ fn extract_refresh_token(jar: &CookieJar, body: &axum::body::Bytes) -> Result<St
         Ok(req) => {
             if let Some(token) = req.refresh_token {
                 // Basic JWT format validation: must have 3 parts separated by dots
-                if token.split('.').count() != 3 {
+                if !is_valid_jwt_format(&token) {
                     return Err(create_auth_error_response("Invalid refresh token format"));
                 }
                 Ok(token)
