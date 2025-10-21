@@ -5,7 +5,7 @@
 
 use axum::{
     extract::{ConnectInfo, Extension, State},
-    http::{header, HeaderMap, StatusCode},
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Json, Response},
 };
 use axum_extra::{
@@ -93,6 +93,49 @@ fn validate_password(password: &str) -> Result<(), validator::ValidationError> {
     }
 
     Ok(())
+}
+
+/// Helper function to create standardized auth error responses
+fn create_auth_error_response(message: &str) -> Response {
+    let response = AuthResponse::<TokenResponse> {
+        success: false,
+        data: None,
+        message: message.to_string(),
+    };
+    (StatusCode::BAD_REQUEST, Json(response)).into_response()
+}
+
+/// Extract refresh token from cookie (web) or JSON body (mobile)
+fn extract_refresh_token(jar: &CookieJar, body: &axum::body::Bytes) -> Result<String, Response> {
+    // Try cookie first (web clients)
+    if let Some(cookie) = jar.get("refresh_token") {
+        let token = cookie.value();
+        // Basic JWT format validation: must have 3 parts separated by dots
+        if token.split('.').count() != 3 {
+            return Err(create_auth_error_response("Invalid refresh token format"));
+        }
+        return Ok(token.to_string());
+    }
+
+    // Fall back to JSON body (mobile clients)
+    if body.is_empty() {
+        return Err(create_auth_error_response("Refresh token not provided"));
+    }
+
+    match serde_json::from_slice::<RefreshRequest>(body) {
+        Ok(req) => {
+            if let Some(token) = req.refresh_token {
+                // Basic JWT format validation: must have 3 parts separated by dots
+                if token.split('.').count() != 3 {
+                    return Err(create_auth_error_response("Invalid refresh token format"));
+                }
+                Ok(token)
+            } else {
+                Err(create_auth_error_response("Refresh token not provided"))
+            }
+        }
+        Err(_) => Err(create_auth_error_response("Invalid JSON body")),
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -857,46 +900,10 @@ pub async fn refresh_token(
         &headers,
     );
 
-    // Get refresh token from cookie first (web), then fall back to JSON body (mobile)
-    let refresh_token = if let Some(cookie) = jar.get("refresh_token") {
-        // Web client: get from cookie
-        cookie.value().to_string()
-    } else {
-        // Try to parse JSON body (for mobile clients)
-        if !body.is_empty() {
-            match serde_json::from_slice::<RefreshRequest>(&body) {
-                Ok(req) => {
-                    if let Some(token) = req.refresh_token {
-                        token
-                    } else {
-                        // Empty refresh_token field
-                        let response = AuthResponse::<TokenResponse> {
-                            success: false,
-                            data: None,
-                            message: "Refresh token not provided".to_string(),
-                        };
-                        return (StatusCode::BAD_REQUEST, Json(response)).into_response();
-                    }
-                }
-                Err(_) => {
-                    // Invalid JSON
-                    let response = AuthResponse::<TokenResponse> {
-                        success: false,
-                        data: None,
-                        message: "Invalid JSON body".to_string(),
-                    };
-                    return (StatusCode::BAD_REQUEST, Json(response)).into_response();
-                }
-            }
-        } else {
-            // No cookie and no body - error
-            let response = AuthResponse::<TokenResponse> {
-                success: false,
-                data: None,
-                message: "Refresh token not provided".to_string(),
-            };
-            return (StatusCode::BAD_REQUEST, Json(response)).into_response();
-        }
+    // Extract refresh token from cookie (web) or JSON body (mobile)
+    let refresh_token = match extract_refresh_token(&jar, &body) {
+        Ok(token) => token,
+        Err(response) => return response,
     };
 
     // Apply rate limiting for refresh endpoint (stricter than normal endpoints) - if enabled
@@ -1678,6 +1685,104 @@ pub async fn reset_password(
 mod tests {
     use super::*;
     use uuid::Uuid;
+    use axum::body::Bytes;
+    use axum_extra::extract::cookie::CookieJar;
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn test_extract_refresh_token_from_cookie() {
+        let jar = CookieJar::new();
+        let jar_with_cookie = jar.add(("refresh_token", "header.payload.signature"));
+        let body = Bytes::new();
+
+        let result = extract_refresh_token(&jar_with_cookie, &body);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "header.payload.signature");
+    }
+
+    #[tokio::test]
+    async fn test_extract_refresh_token_from_json_body() {
+        let jar = CookieJar::new();
+        let token_json = json!({"refresh_token": "mobile.jwt.token"});
+        let body = Bytes::from(token_json.to_string());
+
+        let result = extract_refresh_token(&jar, &body);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "mobile.jwt.token");
+    }
+
+    #[tokio::test]
+    async fn test_extract_refresh_token_empty_body() {
+        let jar = CookieJar::new();
+        let body = Bytes::new();
+
+        let result = extract_refresh_token(&jar, &body);
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_extract_refresh_token_invalid_json() {
+        let jar = CookieJar::new();
+        let body = Bytes::from("{invalid json");
+
+        let result = extract_refresh_token(&jar, &body);
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_extract_refresh_token_json_missing_token() {
+        let jar = CookieJar::new();
+        let token_json = json!({"other_field": "value"});
+        let body = Bytes::from(token_json.to_string());
+
+        let result = extract_refresh_token(&jar, &body);
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_extract_refresh_token_cookie_priority_over_json() {
+        let jar = CookieJar::new();
+        let jar_with_cookie = jar.add(("refresh_token", "cookie.jwt.token"));
+        let token_json = json!({"refresh_token": "json.jwt.token"});
+        let body = Bytes::from(token_json.to_string());
+
+        let result = extract_refresh_token(&jar_with_cookie, &body);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "cookie.jwt.token"); // Cookie should take priority
+    }
+
+    #[tokio::test]
+    async fn test_extract_refresh_token_invalid_format_cookie() {
+        let jar = CookieJar::new();
+        // Invalid token with only 2 parts
+        let jar_with_cookie = jar.add(("refresh_token", "invalid.token"));
+        let body = Bytes::new();
+
+        let result = extract_refresh_token(&jar_with_cookie, &body);
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_extract_refresh_token_invalid_format_json() {
+        let jar = CookieJar::new();
+        // Invalid token with only 1 part
+        let token_json = json!({"refresh_token": "invalidtoken"});
+        let body = Bytes::from(token_json.to_string());
+
+        let result = extract_refresh_token(&jar, &body);
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_extract_refresh_token_too_many_parts() {
+        let jar = CookieJar::new();
+        // Invalid token with 4 parts
+        let jar_with_cookie = jar.add(("refresh_token", "too.many.parts.here"));
+        let body = Bytes::new();
+
+        let result = extract_refresh_token(&jar_with_cookie, &body);
+        assert!(result.is_err());
+    }
 
     /// Mock user structure for testing purposes
     #[derive(Debug)]
