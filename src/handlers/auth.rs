@@ -116,6 +116,22 @@ fn create_delete_refresh_cookie(config: &crate::app_config::AppConfig) -> Cookie
         .build()
 }
 
+/// Helper function to create a refresh token cookie with configurable persistence
+fn create_refresh_token_cookie(token: String, remember_me: bool, config: &crate::app_config::AppConfig) -> Cookie<'static> {
+    let mut cookie_builder = Cookie::build(("refresh_token", token))
+        .path("/")
+        .http_only(true)
+        .secure(config.is_production())
+        .same_site(SameSite::Strict);
+
+    // Only set max_age for remember_me - without it, cookie is session-only
+    if remember_me {
+        cookie_builder = cookie_builder.max_age(Duration::days(config.security.remember_me_duration_days as i64));
+    }
+
+    cookie_builder.build()
+}
+
 /// Extract refresh token from cookie (web) or JSON body (mobile)
 fn extract_refresh_token(jar: &CookieJar, body: &axum::body::Bytes) -> Result<String, Response> {
     // Try cookie first (web clients)
@@ -553,18 +569,7 @@ pub async fn login(
     // Step 13: Set refresh token as HttpOnly cookie for web clients
     // When remember_me=true: persistent cookie with 30-day expiry
     // When remember_me=false: session cookie (deleted when browser closes)
-    let mut cookie_builder = Cookie::build(("refresh_token", refresh_token))
-        .path("/")
-        .http_only(true)
-        .secure(config.is_production()) // Secure in production only
-        .same_site(SameSite::Strict);
-
-    // Only set max_age for remember_me - without it, cookie is session-only
-    if login_req.remember_me {
-        cookie_builder = cookie_builder.max_age(Duration::days(config.security.remember_me_duration_days as i64));
-    }
-
-    let refresh_cookie = cookie_builder.build();
+    let refresh_cookie = create_refresh_token_cookie(refresh_token, login_req.remember_me, &config);
 
     // Add cookie to response
     let updated_jar = jar.add(refresh_cookie);
@@ -974,22 +979,9 @@ pub async fn refresh_token(
             };
 
             // Set new refresh token as HttpOnly cookie for web clients
-            // Use the remember_me flag returned from rotate_refresh_token (no need to decode again)
+            // Use the remember_me flag returned from rotate_refresh_token
             let config = crate::app_config::config();
-
-            // Build cookie with conditional max_age based on remember_me
-            let mut cookie_builder = Cookie::build(("refresh_token", new_refresh_token))
-                .path("/")
-                .http_only(true)
-                .secure(config.is_production()) // Secure in production only
-                .same_site(SameSite::Strict);
-
-            // Only set max_age for remember_me - without it, cookie is session-only
-            if remember_me {
-                cookie_builder = cookie_builder.max_age(Duration::days(config.security.remember_me_duration_days as i64));
-            }
-
-            let refresh_cookie = cookie_builder.build();
+            let refresh_cookie = create_refresh_token_cookie(new_refresh_token, remember_me, &config);
 
             // Add cookie to response
             let updated_jar = jar.add(refresh_cookie);
