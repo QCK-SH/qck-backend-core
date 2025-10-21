@@ -12,6 +12,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 use uuid::Uuid;
 
+/// Number of seconds in a day (24 * 60 * 60)
+const SECONDS_PER_DAY: u64 = 86400;
+
 use crate::config::PermissionConfig;
 use crate::db::{DieselPool, RedisPool};
 use crate::models::auth::{AccessTokenClaims, RefreshTokenClaims};
@@ -567,7 +570,7 @@ impl JwtService {
         let expiry = if remember_me {
             // Get remember_me duration from config (in days) and convert to seconds
             let config = crate::app_config::config();
-            let remember_me_seconds = config.security.remember_me_duration_days as u64 * 86400; // days to seconds
+            let remember_me_seconds = config.security.remember_me_duration_days as u64 * SECONDS_PER_DAY; // days to seconds
             now + remember_me_seconds
         } else {
             now + self.config.refresh_token_expiry
@@ -800,7 +803,7 @@ impl JwtService {
                     // Preserve remember_me from old token, and calculate expiry accordingly
                     let expiry = if old_claims.remember_me {
                         let config = crate::app_config::config();
-                        let remember_me_seconds = config.security.remember_me_duration_days as u64 * 86400;
+                        let remember_me_seconds = config.security.remember_me_duration_days as u64 * SECONDS_PER_DAY;
                         now + remember_me_seconds
                     } else {
                         now + self.config.refresh_token_expiry

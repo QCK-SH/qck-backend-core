@@ -152,13 +152,15 @@ pub struct UserInfo {
 }
 
 impl From<AuthenticatedUser> for UserInfo {
+    /// Note: This trait is only used in tests. For production endpoints,
+    /// use get_current_user() which fetches full_name and onboarding_status from database.
     fn from(user: AuthenticatedUser) -> Self {
         Self {
             user_id: user.user_id,
             email: user.email,
-            full_name: String::new(), // Will be filled from database
+            full_name: String::new(), // Empty placeholder (test-only)
             subscription_tier: user.subscription_tier,
-            onboarding_status: String::new(), // Will be filled from database
+            onboarding_status: String::new(), // Empty placeholder (test-only)
             permissions: user.permissions,
         }
     }
@@ -1144,7 +1146,7 @@ pub async fn get_current_user(
                 data: Some(user_info),
                 message: "User info retrieved successfully".to_string(),
             };
-            Json(response).into_response()
+            (StatusCode::OK, Json(response)).into_response()
         },
         Err(e) => {
             tracing::error!("Failed to fetch user from database: {}", e);

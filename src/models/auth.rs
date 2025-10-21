@@ -320,7 +320,7 @@ mod tests {
         assert_eq!(claims_with_remember.jti, jti);
         assert_eq!(claims_with_remember.iat, 1640995200);
         assert_eq!(claims_with_remember.exp, 1641600000);
-        assert_eq!(claims_with_remember.remember_me, true);
+        assert!(claims_with_remember.remember_me);
 
         // Test new_with_remember with remember_me=false
         let jti2 = Uuid::new_v4().to_string();
@@ -332,7 +332,7 @@ mod tests {
             false,
         );
 
-        assert_eq!(claims_without_remember.remember_me, false);
+        assert!(!claims_without_remember.remember_me);
 
         // Test that new() defaults to false
         let jti3 = Uuid::new_v4().to_string();
@@ -343,7 +343,7 @@ mod tests {
             1641600000,
         );
 
-        assert_eq!(claims_default.remember_me, false);
+        assert!(!claims_default.remember_me);
 
         // Test serialization preserves remember_me flag
         let json = serde_json::to_string(&claims_with_remember).expect("Should serialize");
