@@ -253,7 +253,7 @@ async fn test_device_fingerprint_tracking() {
     assert!(validation2.is_ok(), "Device 2 token should be valid");
 
     // Rotating one shouldn't affect the other
-    let (_, _new_token1) = jwt_service
+    let (_, _new_token1, _remember_me) = jwt_service
         .rotate_refresh_token(
             &token_device1,
             Some("laptop-fingerprint".to_string()),

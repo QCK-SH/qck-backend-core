@@ -105,6 +105,17 @@ fn create_auth_error_response(message: &str) -> Response {
     (StatusCode::BAD_REQUEST, Json(response)).into_response()
 }
 
+/// Helper function to create a cookie that deletes the refresh token
+fn create_delete_refresh_cookie(config: &crate::app_config::AppConfig) -> Cookie<'static> {
+    Cookie::build(("refresh_token", ""))
+        .path("/")
+        .http_only(true)
+        .secure(config.is_production())
+        .same_site(SameSite::Strict)
+        .max_age(Duration::seconds(-1)) // Negative max_age deletes the cookie
+        .build()
+}
+
 /// Extract refresh token from cookie (web) or JSON body (mobile)
 fn extract_refresh_token(jar: &CookieJar, body: &axum::body::Bytes) -> Result<String, Response> {
     // Try cookie first (web clients)
@@ -1053,16 +1064,8 @@ pub async fn logout(
                     };
 
                     // Clear refresh token cookie for web clients
-                    // Must use same attributes as when cookie was set to properly delete it
                     let config = crate::app_config::config();
-                    let delete_cookie = Cookie::build(("refresh_token", ""))
-                        .path("/")
-                        .http_only(true)
-                        .secure(config.is_production())
-                        .same_site(SameSite::Strict)
-                        .max_age(Duration::seconds(-1))  // Negative max_age deletes the cookie
-                        .build();
-
+                    let delete_cookie = create_delete_refresh_cookie(&config);
                     let updated_jar = jar.add(delete_cookie);
 
                     (StatusCode::OK, updated_jar, Json(response)).into_response()
@@ -1076,16 +1079,8 @@ pub async fn logout(
                     };
 
                     // Clear refresh token cookie for web clients even if revocation failed
-                    // Must use same attributes as when cookie was set to properly delete it
                     let config = crate::app_config::config();
-                    let delete_cookie = Cookie::build(("refresh_token", ""))
-                        .path("/")
-                        .http_only(true)
-                        .secure(config.is_production())
-                        .same_site(SameSite::Strict)
-                        .max_age(Duration::seconds(-1))
-                        .build();
-
+                    let delete_cookie = create_delete_refresh_cookie(&config);
                     let updated_jar = jar.add(delete_cookie);
 
                     (StatusCode::OK, updated_jar, Json(response)).into_response()
@@ -1100,16 +1095,8 @@ pub async fn logout(
             };
 
             // Still try to clear the cookie even if logout failed
-            // Must use same attributes as when cookie was set to properly delete it
             let config = crate::app_config::config();
-            let delete_cookie = Cookie::build(("refresh_token", ""))
-                .path("/")
-                .http_only(true)
-                .secure(config.is_production())
-                .same_site(SameSite::Strict)
-                .max_age(Duration::seconds(-1))
-                .build();
-
+            let delete_cookie = create_delete_refresh_cookie(&config);
             let updated_jar = jar.add(delete_cookie);
 
             (StatusCode::INTERNAL_SERVER_ERROR, updated_jar, Json(response)).into_response()
