@@ -5,12 +5,17 @@
 
 use axum::{
     extract::{ConnectInfo, Extension, State},
-    http::{HeaderMap, StatusCode},
-    response::{IntoResponse, Json},
+    http::{header, HeaderMap, StatusCode},
+    response::{IntoResponse, Json, Response},
 };
-use axum_extra::{headers::UserAgent, TypedHeader};
+use axum_extra::{
+    extract::cookie::{Cookie, CookieJar, SameSite},
+    headers::UserAgent,
+    TypedHeader,
+};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
+use time::Duration;
 use validator::Validate;
 
 use crate::{
@@ -44,7 +49,8 @@ pub struct LoginRequest {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct RefreshRequest {
-    pub refresh_token: String,
+    // Make refresh_token optional for web clients (use cookie instead)
+    pub refresh_token: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Validate)]
@@ -96,6 +102,7 @@ pub struct LoginResponse {
     pub expires_in: u64,
     pub token_type: String,
     pub user: LoginUserInfo,
+    pub remember_me: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -138,7 +145,9 @@ pub struct AuthResponse<T> {
 pub struct UserInfo {
     pub user_id: String,
     pub email: String,
+    pub full_name: String,
     pub subscription_tier: String,
+    pub onboarding_status: String,
     pub permissions: Vec<String>,
 }
 
@@ -147,7 +156,9 @@ impl From<AuthenticatedUser> for UserInfo {
         Self {
             user_id: user.user_id,
             email: user.email,
+            full_name: String::new(), // Will be filled from database
             subscription_tier: user.subscription_tier,
+            onboarding_status: String::new(), // Will be filled from database
             permissions: user.permissions,
         }
     }
@@ -166,10 +177,12 @@ impl From<AuthenticatedUser> for UserInfo {
 
 /// POST /auth/login - Authenticate user and return JWT tokens
 /// DEV-102: Comprehensive login with rate limiting, account lockout, and remember_me
+/// Supports both web (cookies) and mobile (JSON tokens) authentication
 pub async fn login(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     user_agent: Option<TypedHeader<UserAgent>>,
+    jar: CookieJar,
     Json(login_req): Json<LoginRequest>,
 ) -> impl IntoResponse {
     use crate::utils::{create_auth_audit_entry, log_auth_failure, AuthError, AuthEventType};
@@ -466,7 +479,7 @@ pub async fn login(
         success: true,
         data: Some(LoginResponse {
             access_token,
-            refresh_token,
+            refresh_token: refresh_token.clone(), // Keep in JSON for mobile compatibility
             expires_in: config.jwt.access_expiry,
             token_type: "Bearer".to_string(),
             user: LoginUserInfo {
@@ -476,11 +489,31 @@ pub async fn login(
                 subscription_tier: user.subscription_tier,
                 onboarding_status: user.onboarding_status,
             },
+            remember_me: login_req.remember_me,
         }),
         message: "Login successful".to_string(),
     };
 
-    (StatusCode::OK, Json(response)).into_response()
+    // Step 13: Set refresh token as HttpOnly cookie for web clients
+    // When remember_me=true: persistent cookie with 30-day expiry
+    // When remember_me=false: session cookie (deleted when browser closes)
+    let mut cookie_builder = Cookie::build(("refresh_token", refresh_token))
+        .path("/")
+        .http_only(true)
+        .secure(config.is_production()) // Secure in production only
+        .same_site(SameSite::Strict);
+
+    // Only set max_age for remember_me - without it, cookie is session-only
+    if login_req.remember_me {
+        cookie_builder = cookie_builder.max_age(Duration::days(config.security.remember_me_duration_days as i64));
+    }
+
+    let refresh_cookie = cookie_builder.build();
+
+    // Add cookie to response
+    let updated_jar = jar.add(refresh_cookie);
+
+    (StatusCode::OK, updated_jar, Json(response)).into_response()
 }
 
 // Helper function to check if an account is locked
@@ -784,12 +817,14 @@ pub async fn register(
 
 /// POST /auth/refresh - Refresh access token using refresh token with rotation
 /// DEV-94/DEV-107: Implements secure token refresh with rotation, device tracking, and rate limiting
+/// Supports both cookie-based (web) and JSON-based (mobile) refresh tokens
 pub async fn refresh_token(
     State(state): State<AppState>,
     user_agent: Option<TypedHeader<UserAgent>>,
     headers: HeaderMap,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    Json(refresh_req): Json<RefreshRequest>,
+    jar: CookieJar,
+    body: axum::body::Bytes,
 ) -> impl IntoResponse {
     // Extract device information from request
     let user_agent = user_agent.map(|TypedHeader(ua)| ua.to_string());
@@ -819,6 +854,48 @@ pub async fn refresh_token(
         &client_language,
         &headers,
     );
+
+    // Get refresh token from cookie first (web), then fall back to JSON body (mobile)
+    let refresh_token = if let Some(cookie) = jar.get("refresh_token") {
+        // Web client: get from cookie
+        cookie.value().to_string()
+    } else {
+        // Try to parse JSON body (for mobile clients)
+        if !body.is_empty() {
+            match serde_json::from_slice::<RefreshRequest>(&body) {
+                Ok(req) => {
+                    if let Some(token) = req.refresh_token {
+                        token
+                    } else {
+                        // Empty refresh_token field
+                        let response = AuthResponse::<TokenResponse> {
+                            success: false,
+                            data: None,
+                            message: "Refresh token not provided".to_string(),
+                        };
+                        return (StatusCode::BAD_REQUEST, Json(response)).into_response();
+                    }
+                }
+                Err(_) => {
+                    // Invalid JSON
+                    let response = AuthResponse::<TokenResponse> {
+                        success: false,
+                        data: None,
+                        message: "Invalid JSON body".to_string(),
+                    };
+                    return (StatusCode::BAD_REQUEST, Json(response)).into_response();
+                }
+            }
+        } else {
+            // No cookie and no body - error
+            let response = AuthResponse::<TokenResponse> {
+                success: false,
+                data: None,
+                message: "Refresh token not provided".to_string(),
+            };
+            return (StatusCode::BAD_REQUEST, Json(response)).into_response();
+        }
+    };
 
     // Apply rate limiting for refresh endpoint (stricter than normal endpoints) - if enabled
     // Use centralized configuration method
@@ -855,17 +932,17 @@ pub async fn refresh_token(
     match state
         .jwt_service
         .rotate_refresh_token(
-            &refresh_req.refresh_token,
+            &refresh_token,
             device_fingerprint,
             ip_address,
             user_agent,
         )
         .await
     {
-        Ok((new_access_token, new_refresh_token)) => {
+        Ok((new_access_token, new_refresh_token, remember_me)) => {
             let token_response = TokenResponse {
                 access_token: new_access_token,
-                refresh_token: new_refresh_token,
+                refresh_token: new_refresh_token.clone(), // Keep in JSON for mobile
                 expires_in: 3600, // 1 hour per Linear DEV-113
                 token_type: "Bearer".to_string(),
             };
@@ -875,7 +952,29 @@ pub async fn refresh_token(
                 data: Some(token_response),
                 message: "Token refreshed successfully".to_string(),
             };
-            (StatusCode::OK, Json(response)).into_response()
+
+            // Set new refresh token as HttpOnly cookie for web clients
+            // Use the remember_me flag returned from rotate_refresh_token (no need to decode again)
+            let config = crate::app_config::config();
+
+            // Build cookie with conditional max_age based on remember_me
+            let mut cookie_builder = Cookie::build(("refresh_token", new_refresh_token))
+                .path("/")
+                .http_only(true)
+                .secure(config.is_production()) // Secure in production only
+                .same_site(SameSite::Strict);
+
+            // Only set max_age for remember_me - without it, cookie is session-only
+            if remember_me {
+                cookie_builder = cookie_builder.max_age(Duration::days(config.security.remember_me_duration_days as i64));
+            }
+
+            let refresh_cookie = cookie_builder.build();
+
+            // Add cookie to response
+            let updated_jar = jar.add(refresh_cookie);
+
+            (StatusCode::OK, updated_jar, Json(response)).into_response()
         },
         Err(e) => {
             let (status_code, message) = match e {
@@ -907,9 +1006,11 @@ pub async fn refresh_token(
 }
 
 /// POST /auth/logout - Invalidate tokens and logout user
+/// Clears refresh token cookie for web clients
 pub async fn logout(
     Extension(user): Extension<AuthenticatedUser>,
     State(state): State<AppState>,
+    jar: CookieJar,
 ) -> impl IntoResponse {
     // Calculate actual remaining TTL from token's expiration time
     let now = std::time::SystemTime::now()
@@ -941,7 +1042,21 @@ pub async fn logout(
                             revoked_count
                         ),
                     };
-                    (StatusCode::OK, Json(response)).into_response()
+
+                    // Clear refresh token cookie for web clients
+                    // Must use same attributes as when cookie was set to properly delete it
+                    let config = crate::app_config::config();
+                    let delete_cookie = Cookie::build(("refresh_token", ""))
+                        .path("/")
+                        .http_only(true)
+                        .secure(config.is_production())
+                        .same_site(SameSite::Strict)
+                        .max_age(Duration::seconds(-1))  // Negative max_age deletes the cookie
+                        .build();
+
+                    let updated_jar = jar.add(delete_cookie);
+
+                    (StatusCode::OK, updated_jar, Json(response)).into_response()
                 },
                 Err(e) => {
                     eprintln!("Warning: Failed to revoke all user tokens: {}", e);
@@ -950,7 +1065,21 @@ pub async fn logout(
                         data: None,
                         message: "Logout successful (current token blacklisted)".to_string(),
                     };
-                    (StatusCode::OK, Json(response)).into_response()
+
+                    // Clear refresh token cookie for web clients even if revocation failed
+                    // Must use same attributes as when cookie was set to properly delete it
+                    let config = crate::app_config::config();
+                    let delete_cookie = Cookie::build(("refresh_token", ""))
+                        .path("/")
+                        .http_only(true)
+                        .secure(config.is_production())
+                        .same_site(SameSite::Strict)
+                        .max_age(Duration::seconds(-1))
+                        .build();
+
+                    let updated_jar = jar.add(delete_cookie);
+
+                    (StatusCode::OK, updated_jar, Json(response)).into_response()
                 },
             }
         },
@@ -960,19 +1089,73 @@ pub async fn logout(
                 data: None,
                 message: format!("Logout failed: {}", e),
             };
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response()
+
+            // Still try to clear the cookie even if logout failed
+            // Must use same attributes as when cookie was set to properly delete it
+            let config = crate::app_config::config();
+            let delete_cookie = Cookie::build(("refresh_token", ""))
+                .path("/")
+                .http_only(true)
+                .secure(config.is_production())
+                .same_site(SameSite::Strict)
+                .max_age(Duration::seconds(-1))
+                .build();
+
+            let updated_jar = jar.add(delete_cookie);
+
+            (StatusCode::INTERNAL_SERVER_ERROR, updated_jar, Json(response)).into_response()
         },
     }
 }
 
 /// GET /auth/me - Get current user information
-pub async fn get_current_user(Extension(user): Extension<AuthenticatedUser>) -> impl IntoResponse {
-    let response = AuthResponse {
-        success: true,
-        data: Some(UserInfo::from(user)),
-        message: "User info retrieved successfully".to_string(),
+pub async fn get_current_user(
+    Extension(user): Extension<AuthenticatedUser>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    // Fetch full user info from database
+    let mut conn = match state.diesel_pool.get().await {
+        Ok(conn) => conn,
+        Err(e) => {
+            tracing::error!("Failed to get database connection: {}", e);
+            let response = AuthResponse::<UserInfo> {
+                success: false,
+                data: None,
+                message: "Database connection error".to_string(),
+            };
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response();
+        },
     };
-    Json(response)
+
+    // Get user from database to fetch full_name and onboarding_status
+    match User::find_by_email(&mut conn, &user.email).await {
+        Ok(db_user) => {
+            let user_info = UserInfo {
+                user_id: user.user_id,
+                email: user.email,
+                full_name: db_user.full_name,
+                subscription_tier: user.subscription_tier,
+                onboarding_status: db_user.onboarding_status,
+                permissions: user.permissions,
+            };
+
+            let response = AuthResponse {
+                success: true,
+                data: Some(user_info),
+                message: "User info retrieved successfully".to_string(),
+            };
+            Json(response).into_response()
+        },
+        Err(e) => {
+            tracing::error!("Failed to fetch user from database: {}", e);
+            let response = AuthResponse::<UserInfo> {
+                success: false,
+                data: None,
+                message: "Failed to fetch user information".to_string(),
+            };
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response()
+        },
+    }
 }
 
 /// POST /auth/validate - Validate current access token (for client-side checks)

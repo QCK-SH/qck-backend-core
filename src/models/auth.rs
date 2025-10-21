@@ -50,6 +50,10 @@ pub struct RefreshTokenClaims {
 
     /// Expires at timestamp (Unix epoch seconds)
     pub exp: u64,
+
+    /// Remember me flag - determines if cookie should persist across browser sessions
+    #[serde(default)]
+    pub remember_me: bool,
 }
 
 impl AccessTokenClaims {
@@ -98,6 +102,24 @@ impl RefreshTokenClaims {
             jti: token_id,
             iat: issued_at,
             exp: expires_at,
+            remember_me: false, // Default to session-only
+        }
+    }
+
+    /// Create new refresh token claims with remember_me option
+    pub fn new_with_remember(
+        user_id: String,
+        token_id: String,
+        issued_at: u64,
+        expires_at: u64,
+        remember_me: bool,
+    ) -> Self {
+        Self {
+            sub: user_id,
+            jti: token_id,
+            iat: issued_at,
+            exp: expires_at,
+            remember_me,
         }
     }
 
@@ -262,7 +284,7 @@ mod tests {
         assert!(obj.contains_key("iat"));
         assert!(obj.contains_key("exp"));
 
-        // Verify RefreshTokenClaims has exactly 4 fields as per Linear spec
+        // Verify RefreshTokenClaims has exactly 5 fields (added remember_me)
         let refresh_claims =
             RefreshTokenClaims::new("test".to_string(), "test-jti".to_string(), 0, 0);
 
@@ -271,12 +293,63 @@ mod tests {
 
         assert_eq!(
             obj.len(),
-            4,
-            "RefreshTokenClaims should have exactly 4 fields"
+            5,
+            "RefreshTokenClaims should have exactly 5 fields"
         );
         assert!(obj.contains_key("sub"));
         assert!(obj.contains_key("jti"));
         assert!(obj.contains_key("iat"));
         assert!(obj.contains_key("exp"));
+        assert!(obj.contains_key("remember_me"));
+    }
+
+    #[test]
+    fn test_refresh_token_with_remember_me() {
+        let jti = Uuid::new_v4().to_string();
+
+        // Test new_with_remember with remember_me=true
+        let claims_with_remember = RefreshTokenClaims::new_with_remember(
+            "user-123".to_string(),
+            jti.clone(),
+            1640995200,
+            1641600000,
+            true,
+        );
+
+        assert_eq!(claims_with_remember.sub, "user-123");
+        assert_eq!(claims_with_remember.jti, jti);
+        assert_eq!(claims_with_remember.iat, 1640995200);
+        assert_eq!(claims_with_remember.exp, 1641600000);
+        assert_eq!(claims_with_remember.remember_me, true);
+
+        // Test new_with_remember with remember_me=false
+        let jti2 = Uuid::new_v4().to_string();
+        let claims_without_remember = RefreshTokenClaims::new_with_remember(
+            "user-456".to_string(),
+            jti2.clone(),
+            1640995200,
+            1641600000,
+            false,
+        );
+
+        assert_eq!(claims_without_remember.remember_me, false);
+
+        // Test that new() defaults to false
+        let jti3 = Uuid::new_v4().to_string();
+        let claims_default = RefreshTokenClaims::new(
+            "user-789".to_string(),
+            jti3,
+            1640995200,
+            1641600000,
+        );
+
+        assert_eq!(claims_default.remember_me, false);
+
+        // Test serialization preserves remember_me flag
+        let json = serde_json::to_string(&claims_with_remember).expect("Should serialize");
+        let deserialized: RefreshTokenClaims =
+            serde_json::from_str(&json).expect("Should deserialize");
+
+        assert_eq!(deserialized.remember_me, true);
     }
 }
