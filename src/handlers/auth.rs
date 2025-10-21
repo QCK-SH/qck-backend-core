@@ -226,21 +226,6 @@ pub struct UserInfo {
     pub permissions: Vec<String>,
 }
 
-impl From<AuthenticatedUser> for UserInfo {
-    /// Note: This trait is only used in tests. For production endpoints,
-    /// use get_current_user() which fetches full_name and onboarding_status from database.
-    fn from(user: AuthenticatedUser) -> Self {
-        Self {
-            user_id: user.user_id,
-            email: user.email,
-            full_name: String::new(), // Empty placeholder (test-only)
-            subscription_tier: user.subscription_tier,
-            onboarding_status: String::new(), // Empty placeholder (test-only)
-            permissions: user.permissions,
-        }
-    }
-}
-
 // =============================================================================
 // CONSTANTS
 // =============================================================================
@@ -1672,6 +1657,23 @@ mod tests {
     use axum::body::Bytes;
     use axum_extra::extract::cookie::CookieJar;
     use serde_json::json;
+
+    // Test-only conversion trait - not available in production code
+    impl From<AuthenticatedUser> for UserInfo {
+        /// This trait implementation is only available in tests.
+        /// For production endpoints, use get_current_user() which fetches full_name
+        /// and onboarding_status from the database.
+        fn from(user: AuthenticatedUser) -> Self {
+            Self {
+                user_id: user.user_id,
+                email: user.email,
+                full_name: String::new(), // Empty placeholder (test-only)
+                subscription_tier: user.subscription_tier,
+                onboarding_status: String::new(), // Empty placeholder (test-only)
+                permissions: user.permissions,
+            }
+        }
+    }
 
     #[tokio::test]
     async fn test_extract_refresh_token_from_cookie() {
