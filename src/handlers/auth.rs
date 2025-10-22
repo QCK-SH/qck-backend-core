@@ -1667,9 +1667,9 @@ mod tests {
             Self {
                 user_id: user.user_id,
                 email: user.email,
-                full_name: String::new(), // Empty placeholder (test-only)
+                full_name: "[TEST-PLACEHOLDER]".to_string(), // Explicit test-only placeholder
                 subscription_tier: user.subscription_tier,
-                onboarding_status: String::new(), // Empty placeholder (test-only)
+                onboarding_status: "[TEST-PLACEHOLDER]".to_string(), // Explicit test-only placeholder
                 permissions: user.permissions,
             }
         }
@@ -1838,5 +1838,8 @@ mod tests {
         assert_eq!(user_info.email, "test@example.com");
         assert_eq!(user_info.subscription_tier, "pro");
         assert_eq!(user_info.permissions.len(), 2);
+        // Verify test placeholders are used correctly
+        assert_eq!(user_info.full_name, "[TEST-PLACEHOLDER]");
+        assert_eq!(user_info.onboarding_status, "[TEST-PLACEHOLDER]");
     }
 }
