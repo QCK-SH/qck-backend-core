@@ -96,7 +96,8 @@ fn validate_password(password: &str) -> Result<(), validator::ValidationError> {
 }
 
 /// Helper function to create standardized auth error responses
-fn create_auth_error_response(message: &str) -> Response {
+/// Available to other modules in the crate for consistent error formatting
+pub(crate) fn create_auth_error_response(message: &str) -> Response {
     let response = AuthResponse::<TokenResponse> {
         success: false,
         data: None,
@@ -133,7 +134,8 @@ fn create_refresh_token_cookie(token: String, remember_me: bool, config: &crate:
 }
 
 /// Validate JWT token format (must have exactly 3 parts separated by dots)
-fn is_valid_jwt_format(token: &str) -> bool {
+/// Available to other modules for consistent JWT validation
+pub(crate) fn is_valid_jwt_format(token: &str) -> bool {
     token.split('.').count() == 3
 }
 
@@ -1658,6 +1660,10 @@ mod tests {
     use axum_extra::extract::cookie::CookieJar;
     use serde_json::json;
 
+    // Test constants for placeholder values
+    const TEST_PLACEHOLDER_FULL_NAME: &str = "[TEST-FULL-NAME]";
+    const TEST_PLACEHOLDER_ONBOARDING_STATUS: &str = "[TEST-ONBOARDING-STATUS]";
+
     // Test-only conversion trait - not available in production code
     impl From<AuthenticatedUser> for UserInfo {
         /// This trait implementation is only available in tests.
@@ -1667,9 +1673,9 @@ mod tests {
             Self {
                 user_id: user.user_id,
                 email: user.email,
-                full_name: "[TEST-PLACEHOLDER]".to_string(), // Explicit test-only placeholder
+                full_name: TEST_PLACEHOLDER_FULL_NAME.to_string(),
                 subscription_tier: user.subscription_tier,
-                onboarding_status: "[TEST-PLACEHOLDER]".to_string(), // Explicit test-only placeholder
+                onboarding_status: TEST_PLACEHOLDER_ONBOARDING_STATUS.to_string(),
                 permissions: user.permissions,
             }
         }
@@ -1839,7 +1845,7 @@ mod tests {
         assert_eq!(user_info.subscription_tier, "pro");
         assert_eq!(user_info.permissions.len(), 2);
         // Verify test placeholders are used correctly
-        assert_eq!(user_info.full_name, "[TEST-PLACEHOLDER]");
-        assert_eq!(user_info.onboarding_status, "[TEST-PLACEHOLDER]");
+        assert_eq!(user_info.full_name, TEST_PLACEHOLDER_FULL_NAME);
+        assert_eq!(user_info.onboarding_status, TEST_PLACEHOLDER_ONBOARDING_STATUS);
     }
 }
