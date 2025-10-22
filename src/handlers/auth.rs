@@ -4,6 +4,7 @@
 // DEV-101: User Registration API with Argon2 password hashing
 
 use axum::{
+    body::Bytes,
     extract::{ConnectInfo, Extension, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Json, Response},
@@ -140,7 +141,7 @@ pub(crate) fn is_valid_jwt_format(token: &str) -> bool {
 }
 
 /// Extract refresh token from cookie (web) or JSON body (mobile)
-fn extract_refresh_token(jar: &CookieJar, body: &axum::body::Bytes) -> Result<String, Response> {
+fn extract_refresh_token(jar: &CookieJar, body: &Bytes) -> Result<String, Response> {
     // Try cookie first (web clients)
     if let Some(cookie) = jar.get("refresh_token") {
         let token = cookie.value();
