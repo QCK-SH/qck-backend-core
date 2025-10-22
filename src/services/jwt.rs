@@ -12,6 +12,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 use uuid::Uuid;
 
+use crate::app_config::SECONDS_PER_DAY;
 use crate::config::PermissionConfig;
 use crate::db::{DieselPool, RedisPool};
 use crate::models::auth::{AccessTokenClaims, RefreshTokenClaims};
@@ -312,6 +313,7 @@ impl JwtService {
             jti: jti.clone(),
             iat: now,
             exp: now + self.config.refresh_token_expiry,
+            remember_me: false, // Default to session-only
         };
 
         // Store in database if pool is available
@@ -566,7 +568,7 @@ impl JwtService {
         let expiry = if remember_me {
             // Get remember_me duration from config (in days) and convert to seconds
             let config = crate::app_config::config();
-            let remember_me_seconds = config.security.remember_me_duration_days as u64 * 86400; // days to seconds
+            let remember_me_seconds = config.security.remember_me_duration_days as u64 * SECONDS_PER_DAY; // days to seconds
             now + remember_me_seconds
         } else {
             now + self.config.refresh_token_expiry
@@ -577,6 +579,7 @@ impl JwtService {
             jti: jti.clone(),
             iat: now,
             exp: expiry,
+            remember_me,
         };
 
         // Store in database with device info
@@ -614,13 +617,14 @@ impl JwtService {
 
     /// Rotate refresh token - validates old token, generates new pair, revokes old
     /// DEV-107: Implements secure token rotation with family tracking
+    /// Returns: (new_access_token, new_refresh_token, remember_me)
     pub async fn rotate_refresh_token(
         &self,
         old_refresh_token: &str,
         device_fingerprint: Option<String>,
         ip_address: Option<String>,
         user_agent: Option<String>,
-    ) -> Result<(String, String), JwtError> {
+    ) -> Result<(String, String, bool), JwtError> {
         // Decode and validate the old refresh token
         // If it fails due to revocation, check if this is a security breach
         let old_claims = match self.validate_refresh_token(old_refresh_token).await {
@@ -694,7 +698,7 @@ impl JwtService {
 
         // Start transaction for atomic rotation
         use diesel_async::AsyncConnection;
-        let result: Result<(String, String), JwtError> = conn
+        let result: Result<(String, String, bool), JwtError> = conn
             .transaction::<_, JwtError, _>(|tx| {
                 Box::pin(async move {
                     // Try to validate and lock the token first
@@ -793,16 +797,27 @@ impl JwtService {
                         .as_secs();
 
                     let new_jti = Uuid::new_v4().to_string();
+
+                    // Preserve remember_me from old token, and calculate expiry accordingly
+                    let expiry = if old_claims.remember_me {
+                        let config = crate::app_config::config();
+                        let remember_me_seconds = config.security.remember_me_duration_days as u64 * SECONDS_PER_DAY;
+                        now + remember_me_seconds
+                    } else {
+                        now + self.config.refresh_token_expiry
+                    };
+
                     let new_claims = RefreshTokenClaims {
                         sub: old_claims.sub.clone(),
                         jti: new_jti.clone(),
                         iat: now,
-                        exp: now + self.config.refresh_token_expiry,
+                        exp: expiry,
+                        remember_me: old_claims.remember_me, // Preserve remember_me flag
                     };
 
                     // Store new refresh token with same family
                     let expires_at = chrono::Utc::now()
-                        + chrono::Duration::seconds(self.config.refresh_token_expiry as i64);
+                        + chrono::Duration::seconds((expiry - now) as i64);
 
                     RefreshToken::store_in_transaction(
                         tx,
@@ -827,7 +842,8 @@ impl JwtService {
                     let new_refresh_token =
                         encode(&header, &new_claims, &self.config.refresh_encoding_key)?;
 
-                    Ok((new_access_token, new_refresh_token))
+                    // Return the remember_me flag to avoid double-decoding in the handler
+                    Ok((new_access_token, new_refresh_token, old_claims.remember_me))
                 })
             })
             .await;

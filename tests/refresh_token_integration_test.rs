@@ -115,7 +115,7 @@ async fn test_complete_token_rotation_flow() {
     assert_eq!(access_claims.sub, user_id);
 
     // Perform token rotation
-    let (new_access, new_refresh) = jwt_service
+    let (new_access, new_refresh, _remember_me) = jwt_service
         .rotate_refresh_token(
             &refresh_token,
             Some("device-123".to_string()),
@@ -167,7 +167,7 @@ async fn test_token_reuse_detection_security() {
         .expect("Failed to generate refresh token");
 
     // First rotation - should succeed
-    let (_, new_refresh) = jwt_service
+    let (_, new_refresh, _remember_me) = jwt_service
         .rotate_refresh_token(
             &refresh_token,
             Some("device-456".to_string()),
@@ -253,7 +253,7 @@ async fn test_device_fingerprint_tracking() {
     assert!(validation2.is_ok(), "Device 2 token should be valid");
 
     // Rotating one shouldn't affect the other
-    let (_, _new_token1) = jwt_service
+    let (_, _new_token1, _remember_me) = jwt_service
         .rotate_refresh_token(
             &token_device1,
             Some("laptop-fingerprint".to_string()),

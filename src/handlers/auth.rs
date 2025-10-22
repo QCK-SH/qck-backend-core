@@ -4,13 +4,19 @@
 // DEV-101: User Registration API with Argon2 password hashing
 
 use axum::{
+    body::Bytes,
     extract::{ConnectInfo, Extension, State},
     http::{HeaderMap, StatusCode},
-    response::{IntoResponse, Json},
+    response::{IntoResponse, Json, Response},
 };
-use axum_extra::{headers::UserAgent, TypedHeader};
+use axum_extra::{
+    extract::cookie::{Cookie, CookieJar, SameSite},
+    headers::UserAgent,
+    TypedHeader,
+};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
+use time::Duration;
 use validator::Validate;
 
 use crate::{
@@ -44,7 +50,8 @@ pub struct LoginRequest {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct RefreshRequest {
-    pub refresh_token: String,
+    // Make refresh_token optional for web clients (use cookie instead)
+    pub refresh_token: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Validate)]
@@ -89,6 +96,83 @@ fn validate_password(password: &str) -> Result<(), validator::ValidationError> {
     Ok(())
 }
 
+/// Helper function to create standardized auth error responses
+/// Available to other modules in the crate for consistent error formatting
+pub(crate) fn create_auth_error_response(message: &str) -> Response {
+    let response = AuthResponse::<TokenResponse> {
+        success: false,
+        data: None,
+        message: message.to_string(),
+    };
+    (StatusCode::BAD_REQUEST, Json(response)).into_response()
+}
+
+/// Helper function to create a cookie that deletes the refresh token
+fn create_delete_refresh_cookie(config: &crate::app_config::AppConfig) -> Cookie<'static> {
+    Cookie::build(("refresh_token", ""))
+        .path("/")
+        .http_only(true)
+        .secure(config.is_production())
+        .same_site(SameSite::Strict)
+        .max_age(Duration::seconds(-1)) // Negative max_age deletes the cookie
+        .build()
+}
+
+/// Helper function to create a refresh token cookie with configurable persistence
+fn create_refresh_token_cookie(token: String, remember_me: bool, config: &crate::app_config::AppConfig) -> Cookie<'static> {
+    let mut cookie_builder = Cookie::build(("refresh_token", token))
+        .path("/")
+        .http_only(true)
+        .secure(config.is_production())
+        .same_site(SameSite::Strict);
+
+    // Only set max_age for remember_me - without it, cookie is session-only
+    if remember_me {
+        cookie_builder = cookie_builder.max_age(Duration::days(config.security.remember_me_duration_days as i64));
+    }
+
+    cookie_builder.build()
+}
+
+/// Validate JWT token format (must have exactly 3 parts separated by dots)
+/// Available to other modules for consistent JWT validation
+pub(crate) fn is_valid_jwt_format(token: &str) -> bool {
+    token.split('.').count() == 3
+}
+
+/// Extract refresh token from cookie (web) or JSON body (mobile)
+fn extract_refresh_token(jar: &CookieJar, body: &Bytes) -> Result<String, Response> {
+    // Try cookie first (web clients)
+    if let Some(cookie) = jar.get("refresh_token") {
+        let token = cookie.value();
+        // Basic JWT format validation: must have 3 parts separated by dots
+        if !is_valid_jwt_format(token) {
+            return Err(create_auth_error_response("Invalid refresh token format"));
+        }
+        return Ok(token.to_string());
+    }
+
+    // Fall back to JSON body (mobile clients)
+    if body.is_empty() {
+        return Err(create_auth_error_response("Refresh token not provided"));
+    }
+
+    match serde_json::from_slice::<RefreshRequest>(body) {
+        Ok(req) => {
+            if let Some(token) = req.refresh_token {
+                // Basic JWT format validation: must have 3 parts separated by dots
+                if !is_valid_jwt_format(&token) {
+                    return Err(create_auth_error_response("Invalid refresh token format"));
+                }
+                Ok(token)
+            } else {
+                Err(create_auth_error_response("Refresh token not provided"))
+            }
+        }
+        Err(_) => Err(create_auth_error_response("Invalid JSON body")),
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {
     pub access_token: String,
@@ -96,6 +180,7 @@ pub struct LoginResponse {
     pub expires_in: u64,
     pub token_type: String,
     pub user: LoginUserInfo,
+    pub remember_me: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -138,19 +223,10 @@ pub struct AuthResponse<T> {
 pub struct UserInfo {
     pub user_id: String,
     pub email: String,
+    pub full_name: String,
     pub subscription_tier: String,
+    pub onboarding_status: String,
     pub permissions: Vec<String>,
-}
-
-impl From<AuthenticatedUser> for UserInfo {
-    fn from(user: AuthenticatedUser) -> Self {
-        Self {
-            user_id: user.user_id,
-            email: user.email,
-            subscription_tier: user.subscription_tier,
-            permissions: user.permissions,
-        }
-    }
 }
 
 // =============================================================================
@@ -166,10 +242,12 @@ impl From<AuthenticatedUser> for UserInfo {
 
 /// POST /auth/login - Authenticate user and return JWT tokens
 /// DEV-102: Comprehensive login with rate limiting, account lockout, and remember_me
+/// Supports both web (cookies) and mobile (JSON tokens) authentication
 pub async fn login(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     user_agent: Option<TypedHeader<UserAgent>>,
+    jar: CookieJar,
     Json(login_req): Json<LoginRequest>,
 ) -> impl IntoResponse {
     use crate::utils::{create_auth_audit_entry, log_auth_failure, AuthError, AuthEventType};
@@ -466,7 +544,7 @@ pub async fn login(
         success: true,
         data: Some(LoginResponse {
             access_token,
-            refresh_token,
+            refresh_token: refresh_token.clone(), // Keep in JSON for mobile compatibility
             expires_in: config.jwt.access_expiry,
             token_type: "Bearer".to_string(),
             user: LoginUserInfo {
@@ -476,11 +554,20 @@ pub async fn login(
                 subscription_tier: user.subscription_tier,
                 onboarding_status: user.onboarding_status,
             },
+            remember_me: login_req.remember_me,
         }),
         message: "Login successful".to_string(),
     };
 
-    (StatusCode::OK, Json(response)).into_response()
+    // Step 13: Set refresh token as HttpOnly cookie for web clients
+    // When remember_me=true: persistent cookie with 30-day expiry
+    // When remember_me=false: session cookie (deleted when browser closes)
+    let refresh_cookie = create_refresh_token_cookie(refresh_token, login_req.remember_me, &config);
+
+    // Add cookie to response
+    let updated_jar = jar.add(refresh_cookie);
+
+    (StatusCode::OK, updated_jar, Json(response)).into_response()
 }
 
 // Helper function to check if an account is locked
@@ -784,12 +871,14 @@ pub async fn register(
 
 /// POST /auth/refresh - Refresh access token using refresh token with rotation
 /// DEV-94/DEV-107: Implements secure token refresh with rotation, device tracking, and rate limiting
+/// Supports both cookie-based (web) and JSON-based (mobile) refresh tokens
 pub async fn refresh_token(
     State(state): State<AppState>,
     user_agent: Option<TypedHeader<UserAgent>>,
     headers: HeaderMap,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    Json(refresh_req): Json<RefreshRequest>,
+    jar: CookieJar,
+    body: axum::body::Bytes,
 ) -> impl IntoResponse {
     // Extract device information from request
     let user_agent = user_agent.map(|TypedHeader(ua)| ua.to_string());
@@ -819,6 +908,12 @@ pub async fn refresh_token(
         &client_language,
         &headers,
     );
+
+    // Extract refresh token from cookie (web) or JSON body (mobile)
+    let refresh_token = match extract_refresh_token(&jar, &body) {
+        Ok(token) => token,
+        Err(response) => return response,
+    };
 
     // Apply rate limiting for refresh endpoint (stricter than normal endpoints) - if enabled
     // Use centralized configuration method
@@ -855,17 +950,17 @@ pub async fn refresh_token(
     match state
         .jwt_service
         .rotate_refresh_token(
-            &refresh_req.refresh_token,
+            &refresh_token,
             device_fingerprint,
             ip_address,
             user_agent,
         )
         .await
     {
-        Ok((new_access_token, new_refresh_token)) => {
+        Ok((new_access_token, new_refresh_token, remember_me)) => {
             let token_response = TokenResponse {
                 access_token: new_access_token,
-                refresh_token: new_refresh_token,
+                refresh_token: new_refresh_token.clone(), // Keep in JSON for mobile
                 expires_in: 3600, // 1 hour per Linear DEV-113
                 token_type: "Bearer".to_string(),
             };
@@ -875,7 +970,16 @@ pub async fn refresh_token(
                 data: Some(token_response),
                 message: "Token refreshed successfully".to_string(),
             };
-            (StatusCode::OK, Json(response)).into_response()
+
+            // Set new refresh token as HttpOnly cookie for web clients
+            // Use the remember_me flag returned from rotate_refresh_token
+            let config = crate::app_config::config();
+            let refresh_cookie = create_refresh_token_cookie(new_refresh_token, remember_me, &config);
+
+            // Add cookie to response
+            let updated_jar = jar.add(refresh_cookie);
+
+            (StatusCode::OK, updated_jar, Json(response)).into_response()
         },
         Err(e) => {
             let (status_code, message) = match e {
@@ -907,9 +1011,11 @@ pub async fn refresh_token(
 }
 
 /// POST /auth/logout - Invalidate tokens and logout user
+/// Clears refresh token cookie for web clients
 pub async fn logout(
     Extension(user): Extension<AuthenticatedUser>,
     State(state): State<AppState>,
+    jar: CookieJar,
 ) -> impl IntoResponse {
     // Calculate actual remaining TTL from token's expiration time
     let now = std::time::SystemTime::now()
@@ -941,7 +1047,13 @@ pub async fn logout(
                             revoked_count
                         ),
                     };
-                    (StatusCode::OK, Json(response)).into_response()
+
+                    // Clear refresh token cookie for web clients
+                    let config = crate::app_config::config();
+                    let delete_cookie = create_delete_refresh_cookie(&config);
+                    let updated_jar = jar.add(delete_cookie);
+
+                    (StatusCode::OK, updated_jar, Json(response)).into_response()
                 },
                 Err(e) => {
                     eprintln!("Warning: Failed to revoke all user tokens: {}", e);
@@ -950,7 +1062,13 @@ pub async fn logout(
                         data: None,
                         message: "Logout successful (current token blacklisted)".to_string(),
                     };
-                    (StatusCode::OK, Json(response)).into_response()
+
+                    // Clear refresh token cookie for web clients even if revocation failed
+                    let config = crate::app_config::config();
+                    let delete_cookie = create_delete_refresh_cookie(&config);
+                    let updated_jar = jar.add(delete_cookie);
+
+                    (StatusCode::OK, updated_jar, Json(response)).into_response()
                 },
             }
         },
@@ -960,19 +1078,65 @@ pub async fn logout(
                 data: None,
                 message: format!("Logout failed: {}", e),
             };
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response()
+
+            // Still try to clear the cookie even if logout failed
+            let config = crate::app_config::config();
+            let delete_cookie = create_delete_refresh_cookie(&config);
+            let updated_jar = jar.add(delete_cookie);
+
+            (StatusCode::INTERNAL_SERVER_ERROR, updated_jar, Json(response)).into_response()
         },
     }
 }
 
 /// GET /auth/me - Get current user information
-pub async fn get_current_user(Extension(user): Extension<AuthenticatedUser>) -> impl IntoResponse {
-    let response = AuthResponse {
-        success: true,
-        data: Some(UserInfo::from(user)),
-        message: "User info retrieved successfully".to_string(),
+pub async fn get_current_user(
+    Extension(user): Extension<AuthenticatedUser>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    // Fetch full user info from database
+    let mut conn = match state.diesel_pool.get().await {
+        Ok(conn) => conn,
+        Err(e) => {
+            tracing::error!("Failed to get database connection: {}", e);
+            let response = AuthResponse::<UserInfo> {
+                success: false,
+                data: None,
+                message: "Database connection error".to_string(),
+            };
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response();
+        },
     };
-    Json(response)
+
+    // Get user from database to fetch full_name and onboarding_status
+    match User::find_by_email(&mut conn, &user.email).await {
+        Ok(db_user) => {
+            let user_info = UserInfo {
+                user_id: user.user_id,
+                email: user.email,
+                full_name: db_user.full_name,
+                subscription_tier: user.subscription_tier,
+                onboarding_status: db_user.onboarding_status,
+                permissions: user.permissions,
+            };
+
+            let response = AuthResponse {
+                success: true,
+                data: Some(user_info),
+                message: "User info retrieved successfully".to_string(),
+            };
+            (StatusCode::OK, Json(response)).into_response()
+        },
+        Err(e) => {
+            tracing::error!("Failed to fetch user from database: {}", e);
+            let response = AuthResponse::<UserInfo> {
+                success: false,
+                data: None,
+                message: "Failed to fetch user information".to_string(),
+            };
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response()
+        },
+    }
 }
 
 /// POST /auth/validate - Validate current access token (for client-side checks)
@@ -1493,6 +1657,125 @@ pub async fn reset_password(
 mod tests {
     use super::*;
     use uuid::Uuid;
+    use axum::body::Bytes;
+    use axum_extra::extract::cookie::CookieJar;
+    use serde_json::json;
+
+    // Test constants for placeholder values
+    const TEST_PLACEHOLDER_FULL_NAME: &str = "[TEST-FULL-NAME]";
+    const TEST_PLACEHOLDER_ONBOARDING_STATUS: &str = "[TEST-ONBOARDING-STATUS]";
+
+    // Test-only conversion trait - not available in production code
+    impl From<AuthenticatedUser> for UserInfo {
+        /// This trait implementation is only available in tests.
+        /// For production endpoints, use get_current_user() which fetches full_name
+        /// and onboarding_status from the database.
+        fn from(user: AuthenticatedUser) -> Self {
+            Self {
+                user_id: user.user_id,
+                email: user.email,
+                full_name: TEST_PLACEHOLDER_FULL_NAME.to_string(),
+                subscription_tier: user.subscription_tier,
+                onboarding_status: TEST_PLACEHOLDER_ONBOARDING_STATUS.to_string(),
+                permissions: user.permissions,
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_extract_refresh_token_from_cookie() {
+        let jar = CookieJar::new();
+        let jar_with_cookie = jar.add(("refresh_token", "header.payload.signature"));
+        let body = Bytes::new();
+
+        let result = extract_refresh_token(&jar_with_cookie, &body);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "header.payload.signature");
+    }
+
+    #[tokio::test]
+    async fn test_extract_refresh_token_from_json_body() {
+        let jar = CookieJar::new();
+        let token_json = json!({"refresh_token": "mobile.jwt.token"});
+        let body = Bytes::from(token_json.to_string());
+
+        let result = extract_refresh_token(&jar, &body);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "mobile.jwt.token");
+    }
+
+    #[tokio::test]
+    async fn test_extract_refresh_token_empty_body() {
+        let jar = CookieJar::new();
+        let body = Bytes::new();
+
+        let result = extract_refresh_token(&jar, &body);
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_extract_refresh_token_invalid_json() {
+        let jar = CookieJar::new();
+        let body = Bytes::from("{invalid json");
+
+        let result = extract_refresh_token(&jar, &body);
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_extract_refresh_token_json_missing_token() {
+        let jar = CookieJar::new();
+        let token_json = json!({"other_field": "value"});
+        let body = Bytes::from(token_json.to_string());
+
+        let result = extract_refresh_token(&jar, &body);
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_extract_refresh_token_cookie_priority_over_json() {
+        let jar = CookieJar::new();
+        let jar_with_cookie = jar.add(("refresh_token", "cookie.jwt.token"));
+        let token_json = json!({"refresh_token": "json.jwt.token"});
+        let body = Bytes::from(token_json.to_string());
+
+        let result = extract_refresh_token(&jar_with_cookie, &body);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "cookie.jwt.token"); // Cookie should take priority
+    }
+
+    #[tokio::test]
+    async fn test_extract_refresh_token_invalid_format_cookie() {
+        let jar = CookieJar::new();
+        // Invalid token with only 2 parts
+        let jar_with_cookie = jar.add(("refresh_token", "invalid.token"));
+        let body = Bytes::new();
+
+        let result = extract_refresh_token(&jar_with_cookie, &body);
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_extract_refresh_token_invalid_format_json() {
+        let jar = CookieJar::new();
+        // Invalid token with only 1 part
+        let token_json = json!({"refresh_token": "invalidtoken"});
+        let body = Bytes::from(token_json.to_string());
+
+        let result = extract_refresh_token(&jar, &body);
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_extract_refresh_token_too_many_parts() {
+        let jar = CookieJar::new();
+        // Invalid token with 4 parts
+        let jar_with_cookie = jar.add(("refresh_token", "too.many.parts.here"));
+        let body = Bytes::new();
+
+        let result = extract_refresh_token(&jar_with_cookie, &body);
+        assert!(result.is_err());
+    }
 
     /// Mock user structure for testing purposes
     #[derive(Debug)]
@@ -1562,5 +1845,8 @@ mod tests {
         assert_eq!(user_info.email, "test@example.com");
         assert_eq!(user_info.subscription_tier, "pro");
         assert_eq!(user_info.permissions.len(), 2);
+        // Verify test placeholders are used correctly
+        assert_eq!(user_info.full_name, TEST_PLACEHOLDER_FULL_NAME);
+        assert_eq!(user_info.onboarding_status, TEST_PLACEHOLDER_ONBOARDING_STATUS);
     }
 }

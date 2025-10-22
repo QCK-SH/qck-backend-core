@@ -13,7 +13,7 @@ use thiserror::Error;
 use tracing::{error, info, instrument, warn};
 
 use crate::{
-    app_config::CONFIG,
+    app_config::{CONFIG, SECONDS_PER_DAY},
     db::{DieselPool, RedisPool},
     utils::base62::{Base62Encoder, Base62Error},
 };
@@ -544,7 +544,7 @@ impl ShortCodeGenerator {
 
             if let Err(e) = redis_pool
                 .set_with_expiry(
-                    &alert_key, alert_data, 86400, // Keep alert for 24 hours
+                    &alert_key, alert_data, SECONDS_PER_DAY as usize, // Keep alert for 24 hours
                 )
                 .await
             {
