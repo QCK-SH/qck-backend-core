@@ -12,9 +12,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 use uuid::Uuid;
 
-/// Number of seconds in a day (24 * 60 * 60)
-const SECONDS_PER_DAY: u64 = 86400;
-
+use crate::app_config::SECONDS_PER_DAY;
 use crate::config::PermissionConfig;
 use crate::db::{DieselPool, RedisPool};
 use crate::models::auth::{AccessTokenClaims, RefreshTokenClaims};

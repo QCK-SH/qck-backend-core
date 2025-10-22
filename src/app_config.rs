@@ -14,6 +14,9 @@ pub enum ConfigError {
     InvalidValue(String, String),
 }
 
+/// Number of seconds in a day (24 * 60 * 60)
+pub const SECONDS_PER_DAY: u64 = 24 * 60 * 60;
+
 /// Global application configuration loaded once at startup
 pub static CONFIG: Lazy<AppConfig> = Lazy::new(|| {
     // For tests, load .env file first
