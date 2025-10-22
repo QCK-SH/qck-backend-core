@@ -35,6 +35,7 @@ use crate::{
     },
     CONFIG,
 };
+use crate::app_config::SECONDS_PER_DAY;
 
 // =============================================================================
 // TYPES
@@ -1458,7 +1459,7 @@ async fn increment_click_count_with_retry(
                 if let Ok(mut conn) = redis_pool.get_connection().await {
                     let fallback_key = format!("clicks:fallback:{}", short_code);
                     let _ = conn.incr::<_, _, ()>(&fallback_key, 1).await;
-                    let _ = conn.expire::<_, ()>(&fallback_key, 86400).await; // 24 hour TTL
+                    let _ = conn.expire::<_, ()>(&fallback_key, SECONDS_PER_DAY as i64).await; // 24 hour TTL
                 }
 
                 return Err(e);

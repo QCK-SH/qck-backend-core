@@ -715,7 +715,7 @@ mod tests {
         assert!(config.jwt_access_secret.len() >= 32);
         assert!(config.jwt_refresh_secret.len() >= 32);
         assert_eq!(config.jwt_access_expiry, 7200);
-        assert_eq!(config.jwt_refresh_expiry, 86400);
+        assert_eq!(config.jwt_refresh_expiry, SECONDS_PER_DAY);
 
         // Verify defaults
         assert_eq!(config.environment, Environment::Development);
